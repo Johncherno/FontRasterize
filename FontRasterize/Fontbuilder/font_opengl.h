@@ -1,0 +1,165 @@
+#pragma once
+#define GLEW_STATIC
+#include<GL/glew.h>
+#include<GLFW/glfw3.h>
+#include"FontStructure.h"
+#include"shaderProgram.h"
+#include<glm.hpp>
+struct DrawVert//发送给OpenGL的顶点数据结构
+{
+	glm::vec2 pos;
+	glm::vec2 Tex;
+	glm::vec4 Col;//不同窗口的绘制列表有不同的alpha值
+};
+struct ClipRect
+{
+	glm::vec2 Min;
+	glm::vec2 Max;
+	ClipRect(glm::vec2 ClipMin, glm::vec2 ClipMax):Min(ClipMin),Max(ClipMax){}
+	ClipRect() = default;
+	bool Contain(glm::vec2 p) const { return p.x >= Min.x && p.y >= Min.y && p.x < Max.x && p.y < Max.y; }//检查是否涵盖鼠标位置
+};
+struct DrawList
+{
+	//默认构造函数初始化这个结构的参数
+	DrawList()
+	{
+		this->VtxCurrentIdx = 0;
+		this->VtxWritePtr = nullptr;
+		this->_IdxWritePtr = nullptr;
+		_VtxBuffer.resize(0);
+		_IdxBuffer.resize(0);
+		_ArcPath.resize(0);
+	}
+	//执行函数功能
+	void Clear();
+	void ReserveForBuffer(unsigned int vtxcount, unsigned int idxcount);
+	void _PathArc(glm::vec2 center, float radius, unsigned int MinSample, unsigned int MaxSample, float scale);
+	void PolyConvexFill(glm::vec4 color);
+	void AddLine(glm::vec2 p1, glm::vec2 p2, glm::vec4 color, float thickness);//绘制线条
+	void AddTriangle(glm::vec2 p1, glm::vec2 p2, glm::vec2 p3, glm::vec4 color, float thickness);//绘制三角形边框
+	void AddRectTriangleBorder(glm::vec2 Min, glm::vec2 Max, glm::vec4 color, float thickness);//绘制矩形三角形边框 或者绘制字体方块四角三角形顶点边框
+	void AddRectBorder(glm::vec2 Min, glm::vec2 Max, glm::vec4 color, float thickness);//绘制边框
+	void AddRectFill(glm::vec2 Min, glm::vec2 Max, glm::vec4 color, float rounding, float scale);//绘制圆角文本框进行颜色填充
+	void AddText_VertTriangleBorder(glm::vec2 TextPosition, glm::vec4 LineColor, const char* Text, float scalex, float scaley,float thickness);//绘制字符串的方块顶点三角边框
+	void AddText(glm::vec2 TextPosition, glm::vec4 TextColor, const char* Text, float scalex, float scaley);	
+	
+	//void AddRotText(glm::vec2 TextPosition, glm::vec3 TextColor, const char* Text, FontAtlas* atlas, float scalex, float scaley, float time);
+	void AddClipText(glm::vec2 TextPosition, glm::vec4 TextColor, const char* Text, ClipRect clipRect, float scalex, float scaley);
+	void RendeAllCharactersIntoScreen(glm::vec2 pos, float ConstraintWidth, glm::vec4 Col, float scalex, float scaley);
+	//成员变量
+	DynamicArray<glm::vec2>_ArcPath;//存储圆弧和不带圆弧的坐标
+	DynamicArray<DrawVert>_VtxBuffer;
+	DynamicArray<unsigned int>_IdxBuffer;
+	DrawVert* VtxWritePtr = nullptr;
+	unsigned int* _IdxWritePtr = nullptr;
+	unsigned int VtxCurrentIdx = 0;
+
+
+};
+
+struct KeyEvent { int key; bool press; };//按键消息结构体
+struct InputEventParam//输入消息参数   鼠标XY位移  鼠标按键信息  鼠标屏幕位置  滚轮条的滚动位移 KeyEvent{int key bool press} 按键消息
+{
+	glm::vec2 MouseDeltaOffset;//鼠标XY位移
+	bool MouseDown[3] = { false,false,false };//鼠标按键按下布尔判断信息 []使用GLFW_MOUSE_BUTTON_LEFT枚举名称0 1 2 索引
+	glm::vec2 MousePos;//鼠标屏幕位置 
+	float Scroll;//滚轮条的滚动位移
+	KeyEvent KeyMesage;//按键消息
+};
+struct gl_Content//这个UI设计gl的绘制资源数据集合
+{
+	DrawList drawlist;//绘制列表
+	GLuint Vao, Vbo, Ebo;//glbuffer
+	unsigned int VertexBufferSize, IdxBufferSize;//顶点缓冲的Vtx Idx属性
+};
+struct ShowWindowContainer
+{
+	
+	ShowWindowContainer()//初始化显示窗口的各个参数
+	{
+		this->Pos= glm::vec2(0, 0);//显示窗口绘制位置
+		this->TitleColor= glm::vec4(0, 0, 1, 1);//自己窗口标题的颜色
+		this->content.drawlist = DrawList();
+		this->OutterRect = ClipRect(this->Pos, this->Pos + glm::vec2(460, 490));//初始化自己窗口的外部裁剪矩形
+		this->content.VertexBufferSize = 0;//自己窗口存储的顶点个数
+		this->content.IdxBufferSize = 0;//自己窗口存储的索引绘制个数
+		this->ScaleX = 1.0f;//初始化自己窗口的缩放大小
+		this->ScaleY = 1.0f;
+		//设置自己窗口的各种判断事件的判断标志
+		this->Flag.AllowResponseInputEvent = false;
+		this->Flag.Bring_Front = false;
+		this->Flag.IsWindowVisible = false;
+	}
+	struct ShowWindowflag
+	{
+		bool AllowResponseInputEvent = false;//是否允许当前窗口响应事件 防止叠加的窗口都在响应输入事件 我们只允许叠加的窗口中置顶窗口响应事件
+		bool Bring_Front = false;//是否自身窗口置顶显示
+		bool IsWindowVisible = true;//是否允许窗口显示即是否将本身窗口绘制资源顶点发送给GPU
+	};
+	glm::vec2 Pos ;//显示窗口绘制位置
+	glm::vec4 TitleColor ;//自己窗口标题的颜色
+	ClipRect OutterRect;//自家窗口的外部裁剪矩形
+
+
+	gl_Content content; // 自家窗口的绘制资源 自家窗口的绘制列表 每个窗口都有自己的glbuffer 自己窗口的顶点缓冲的Vtx Idx属性
+
+
+	float ScaleX, ScaleY;//自己窗口的绘制内容的缩放比例
+	ShowWindowflag Flag;
+};
+struct DrawData
+{
+	
+	glm::vec2 DisplayPos;//视口显示位置
+	glm::vec2 DisplaySize;//视口屏幕大小 也是正交投影的视口
+	glm::vec2 framebufferscale;//帧缓冲视口缩放大小
+	DynamicArray<ShowWindowContainer*>DrawDataLayerBuffer;//存储每个窗口图层的绘制资源 和一些判断状态
+	
+};
+
+class UI
+{
+public:
+	void StartShowWindow(const char* Text, bool Popen);
+	void EndShowWindow();//从当前窗口弹开方便下一个窗口的子条目绘制因为要访问目前窗口的位置
+private:
+	ShowWindowContainer* CreateNewShowWindow(const char* name);//只允许调用一次
+	ShowWindowContainer* FindShowWindowByName(const char* name);
+protected:
+    RBTreeMap<const char*, ShowWindowContainer*>NameToShowWindowMap;//标题名映射到这个标题显示窗口的地址
+	ShowWindowContainer* LastShowWindow = nullptr;//只有在第一次窗口位置的赋值时才需要访问
+	DynamicArray<ShowWindowContainer*>CurrentShowWindowStack;//方便窗口的子条目绘制
+};
+class BuiltIO
+{
+public:
+	void CreateFontTexture();
+	void CreateShowWindow_glBuffer(ShowWindowContainer* Show_Window);
+	void UpdateDrawDataBuffer(UI* DrawUI);//更新绘制数据顶点
+	void RenderDrawList();
+	void DeleteResource();//释放内存
+	DrawData drawdata;
+	FontAtlas atlas;
+	InputEventParam InputMessage;//输入响应消息
+	glm::vec2 ArcFastLookUpTable[48];//存储cos sin值
+	bool Has_Bring_front_opera=false;//是否有置顶窗口的操作
+protected:
+	shaderProgram* shader = nullptr;
+	glm::mat4 orthoProjection;
+	unsigned int TexId;
+private:
+	void initializeArcTable();
+	void SetUpBufferState(GLuint vertex_object_array, GLuint vertex_Buffer_object, GLuint element_object_object);
+	void Bring_TopDrawDataLayer_ToFrontDisplay();//更新置顶层绘制窗口绘制资源 窗口进行置顶操作 本质是将窗口的存放索引改变了 GPU顶点绘制顺序改变了
+	void AllowDrawDataLayerResponseEvent();//是否绘制图层响应事件输入 是否允许当前窗口响应事件 防止叠加的窗口都在响应输入事件 我们只允许叠加的窗口中置顶窗口响应事件
+};
+
+//C函数代码
+void SetUpContextIO();// io设置
+void BuildBackendData();//建立所需要的字体纹理和顶点资源
+BuiltIO* GetIo();//返回IO访问地址
+void UpdateEvent(GLFWwindow* window);
+void ClearEvent();
+void RenderDrawData(UI* DrawUI);//绘制添加进来的绘制数据
+void DestructResource();//释放内存
