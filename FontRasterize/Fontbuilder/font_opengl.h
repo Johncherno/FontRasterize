@@ -81,6 +81,7 @@ struct ShowWindowContainer
 		this->Pos= glm::vec2(0, 0);//显示窗口绘制位置
 		this->TitleColor= glm::vec4(0, 0, 1, 1);//自己窗口标题的颜色
 		this->content.drawlist = DrawList();
+		this->TitleRect = ClipRect(this->Pos, this->Pos + glm::vec2(460, 70));
 		this->OutterRect = ClipRect(this->Pos, this->Pos + glm::vec2(460, 490));//初始化自己窗口的外部裁剪矩形
 		this->content.VertexBufferSize = 0;//自己窗口存储的顶点个数
 		this->content.IdxBufferSize = 0;//自己窗口存储的索引绘制个数
@@ -99,12 +100,12 @@ struct ShowWindowContainer
 	};
 	glm::vec2 Pos ;//显示窗口绘制位置
 	glm::vec4 TitleColor ;//自己窗口标题的颜色
+
+	ClipRect TitleRect;//标题框裁剪矩形
 	ClipRect OutterRect;//自家窗口的外部裁剪矩形
 
 
 	gl_Content content; // 自家窗口的绘制资源 自家窗口的绘制列表 每个窗口都有自己的glbuffer 自己窗口的顶点缓冲的Vtx Idx属性
-
-
 	float ScaleX, ScaleY;//自己窗口的绘制内容的缩放比例
 	ShowWindowflag Flag;
 };
@@ -114,7 +115,7 @@ struct DrawData
 	glm::vec2 DisplayPos;//视口显示位置
 	glm::vec2 DisplaySize;//视口屏幕大小 也是正交投影的视口
 	glm::vec2 framebufferscale;//帧缓冲视口缩放大小
-	DynamicArray<ShowWindowContainer*>DrawDataLayerBuffer;//存储每个窗口图层的绘制资源 和一些判断状态
+	DynamicArray<ShowWindowContainer*>DrawDataLayerBuffer;//存储每个窗口图层的绘制资源 和一些判断状态  改成这样不用像之前那样再访问遍历窗口容器再进行拷贝
 	
 };
 

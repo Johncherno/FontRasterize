@@ -721,11 +721,14 @@ void BuiltIO::RenderDrawList()
 	shader->setUniform("ProjectM", orthoProjection);
 	for (unsigned int i = 0; i < this->drawdata.DrawDataLayerBuffer.size(); i++)
 	{
-		
-	
 		ShowWindowContainer*DrawDataLayer = this->drawdata.DrawDataLayerBuffer[i];
+		//std::cout << "绘制窗口的顶点个数" << DrawDataLayer->content.drawlist._VtxBuffer.size() << std::endl;
 		if (!DrawDataLayer->Flag.IsWindowVisible)//如果这个窗口不允许显示就不执行下面操作
+		{
+			DrawDataLayer->content.drawlist.Clear();//同时你这个窗口资源不发送显示 直接清除掉
 			continue;
+		}
+			
 		DrawList* cmdDrawlist = &DrawDataLayer->content.drawlist;//获取的是每一个允许显示窗口的绘制内容
 		DynamicArray<DrawVert>& vtxBuffer = cmdDrawlist->_VtxBuffer;
 		DynamicArray<unsigned int>& idxBuffer = cmdDrawlist->_IdxBuffer;
