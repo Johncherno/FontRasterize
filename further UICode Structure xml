@@ -1,0 +1,145 @@
+SetUpCurrentIO() io设置
+
+SetupBackUpdata();创建绘制数据顶点数组 创建字体字符图集 并加载着色器
+
+
+while(1)渲染循环
+{
+      UpdateEvent(pwindow);更新鼠标XY位移（mouseDeltaXoffset mouseDeltaYoffset） 鼠标屏幕位置(mousePos)  更新滚轮条的滚动位移scroll 键盘判断处理事件 窗口的视口大小位置 绘制正交投影视口
+     
+      ui::StartShowWindow("...标题"，popen)主窗口 popen代表窗口是否打开
+      if(ui::Menu("..菜单栏名字"，Horizontal  Vertical子条目是竖直摆放 还是水平摆放))   如果鼠标悬浮在此就显示单个菜单栏的子条目
+      {
+            ui::MenuItem("..子条目1"，是否启动其他函数显示文字元素的标志（假如这个是ShowScdW）);借用在fontopengl.cpp io里的Drawdata 
+            ui::MenuItem("..子条目2"，是否启动其他函数显示文字元素的标志);
+            ui::MenuItem("..子条目3"，是否启动其他函数显示文字元素的标志);
+            ui::MenuItem("..子条目4"，是否启动其他函数显示文字元素的标志);
+            ui::MenuItem("..子条目5"，是否启动其他函数显示文字元素的标志);
+      }此时drawlist已经装上了文本顶点缓冲
+      ui::EndMenu();
+     ui::EndThisShowWindow();
+
+     ui::StartShowWindow（......,ShowScdW）
+
+     .......
+     ui::EndThisShowWindow()
+
+      RenderDrawData();将DrawData的drawlist framebufferscale displayPos displaySize发送给OpenGL调用gl命令绘制
+}
+
+
+
+
+ui::StartShowWindow（“标题内容”，是否打开这个窗口）  我们需要一个showWindow->CurPos 跟踪位置 跟踪每一个内容绘制的变化起始最终位置
+{
+    .....之前的代码
+    注意这个是要在第一次创建窗口第一次建立时才执行  剩下的这些参数来回修改访问
+    {
+       计算当前输入文本的宽度calcuTextSize()==>TextSize
+      TitleRect.Width=OutterRect.Width=TextSize+showWindow->spacing*5; 标题框 外部裁剪框的宽度
+      TitleRect.Height=io->fontSize*showWindow*scaley;标题框的高度
+
+   }
+    
+
+    设置OutterRect的位置  宽高参数
+    OutterRect.Min=showWindow->Pos;
+    OutterRect.Max=showWindow->Pos+glm::vec2(OutterRect.Width,OutterRect.Height);
+    设置TitleRect的位置  宽高参数
+    TitleRect.Min=showWindow->Pos;
+    TitleRect.Max=showWindow->Pos+glm::vec2(TitleRect.Width,TitleRect.Height);
+    设置标题文本显示位置   
+    glm::vec2 TitleTextPos=glm::vec2(showWindow->Pos.x+showWindow->spacing*scaleX*2,showWindow->Pos.x+showWindow->spacing*scaleY*2);
+
+
+    绘制OutterRect外部裁剪矩形( OutterRect.Min,OutterRect.Max,showWindow->Color[OutterRect] )   在初始化这个颜色枚举索引的Color列举的颜色数组  在循环可以随时调整showWindow->Color[..]
+    绘制titleRect标题裁剪矩形(TitleRect.Min,TitleRect.Max,showWindow->Color[TitleBar])
+    绘制title文本ClipText(TitleTextPos,showWindow->Color[TitleText],TitleRect,showWindow->scalex,showWindow->scaley)
+   
+  设置窗口的跟踪位置
+   showWindow->CurPos= showWindow->Pos;
+   showWindow->CursPos.y+=TitileRect.Height+spacing*1.1;隔开标题框的宽度 同时在隔开点距离  方便显示菜单栏时继承跟踪位置
+   if(showWindow->AllowResponseEvent) 如果这个窗口允许响应输入事件
+   {
+         if(OutterRect.contain(鼠标位置)检查鼠标位置在外部裁剪矩形
+         {
+            移动窗口位置
+           outterRect的颜色改变
+            响应滚轮 判断按键改变内容的缩放比例
+             if(TitleRect.contain(鼠标位置))   
+              {
+                     outterRect的颜色恢复原来
+                    
+                     TitleRect的颜色改变
+              }
+             else
+            {
+                  TitleRect的颜色恢复原来
+
+            }
+
+        }
+        else
+         outterRect的颜色恢复原来的颜色
+   }
+}
+ui::StartMenu(Horizontal  Vertical菜单栏是竖直摆放 还是水平摆放 枚举类型)
+{
+     现在的窗口CurrentWindow=CurrentWindowStack.back()
+     CurrentWindow->菜单摆放方式MenuShowOrder=输入的摆放方式
+
+}
+bool ui::Menu("菜单栏的名字",bool enableMenuItem是否开启子条目显示)返回这个菜单是否允许添加子条目标志
+{
+   现在的窗口CurrentWindow=CurrentWindowStack.back()
+    ShowWindowMenu*Menu=FindMenuByName("菜单栏名字");
+   if(Menu==nullptr)  如果是第一次执行的就创建这个菜单
+   {
+       Menu=CreateMenu("菜单栏名字");  里面执行的是对Menu初始化矩形参数  矩形颜色参数  然后执行这个操作CurrentWindow->MenuStack.push_back(Menu);主要存储每一个菜单栏的Rect位置方便子条目显示访问  
+   }
+   Menu->EnableMenuItem=enableMenuItem;
+   现在的窗口CurrentWindow=CurrentWindowStack.back() 
+   设置Menu的位置大小颜色参数(Menu{菜单栏裁剪矩形，悬浮窗裁剪矩形(HoverRect)、颜色、开启子条目显示标志})
+   Menu->Rect.Width= calcuTextSize("菜单栏的名字",scaleX,scaleY)+spacing*1.7;
+   Menu->Rect.Height=io->fontSize*scaleY+spacing*1.3;
+   Menu->Rect.Min=CurrentWindow->CurPos;
+   Menu->Rect.Max=CurrentWindow->CurPos+glm::vec2(MenuRect.Width,MenuRect.Height);
+   
+   绘制menuRect(Menu->Rect.Min，Menu->Rect.Max，Menu->Color)
+
+    设置菜单栏文本显示位置   
+    glm::vec2 MenuTextPos=glm::vec2(Menu->Rect.Min.x+CurrentWindow->spacing*scaleX*2,Menu->Rect.Min.y+CurrentWindow->spacing*scaleY*2);
+
+
+   绘制menu的clip文本(MenuTextPos,menuRect,CurrentWindow->Color[Text],scaleX,scaleY);
+   if(CurrentWindow->菜单摆放方式MenuShowOrder==水平摆放)
+   {
+           CurrentWindow->CurPos.x+= Menu->Rect.Width+spacing*2.1; 跟踪位置往x轴方向自增距离 
+      
+   }
+   else if(CurrentWindow->菜单摆放方式MenuShowOrder==垂直摆放)
+   {
+
+     CurrentWindow->CurPos.y+= Menu->Rect.Height+spacing*2.1; 跟踪位置往y轴方向自增距离 
+
+   }
+   if(CurrentWindow->AllowResponseEvent)
+   {
+      是否菜单框吃了鼠标位置
+        if(MenuRect.contain(mousePos))  要明白
+        {
+              改变这个菜单栏的颜色
+            Menu->Color=你自己定
+                   
+        }
+       else
+       {
+           
+          恢复这个菜单栏原来的颜色
+          Menu->Color=CurrentWindow->Color[MenuRect];
+
+      }   
+   }
+return Menu->EnableMenuItem;返回这个菜单栏是否允许子条目添加
+}
+
