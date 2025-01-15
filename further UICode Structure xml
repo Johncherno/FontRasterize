@@ -35,9 +35,9 @@ ui::StartShowWindow（“标题内容”，是否打开这个窗口）  我们�
     .....之前的代码
     注意这个是要在第一次创建窗口第一次建立时才执行  剩下的这些参数来回修改访问
     {
-       计算当前输入文本的宽度calcuTextSize()==>TextSize
+       计算当前输入文本的宽度calcuTextSize("标题内容"，scaleX,scaleY).x==>TextSize
       TitleRect.Width=OutterRect.Width=TextSize+showWindow->spacing*5; 标题框 外部裁剪框的宽度
-      TitleRect.Height=io->fontSize*showWindow*scaley;标题框的高度
+      TitleRect.Height=calcuTextSize().y+spacing*1.3;标题框的高度
 
    }
     
@@ -92,16 +92,18 @@ ui::StartMenu(Horizontal  Vertical菜单栏是竖直摆放 还是水平摆放 �
 bool ui::Menu("菜单栏的名字",bool enableMenuItem是否开启子条目显示)返回这个菜单是否允许添加子条目标志
 {
    现在的窗口CurrentWindow=CurrentWindowStack.back()
-    ShowWindowMenu*Menu=FindMenuByName("菜单栏名字");
+    ShowWindowMenu*Menu=CurrentWindow->FindMenuByName("菜单栏名字");
    if(Menu==nullptr)  如果是第一次执行的就创建这个菜单
    {
-       Menu=CreateMenu("菜单栏名字");  里面执行的是对Menu初始化矩形参数  矩形颜色参数  然后执行这个操作CurrentWindow->MenuStack.push_back(Menu);主要存储每一个菜单栏的Rect位置方便子条目显示访问  
+       Menu=CreateMenu("菜单栏名字");  里面执行的是对Menu初始化矩形参数  矩形颜色参数  
+      然后执行这个操作CurrentWindow->MenuArray.push_back(Menu);主要存储每一个菜单栏信息 方便遍历当前窗口的所有菜单栏进行判断  
    }
+   CurrentWindow->CurrentMenuStack.push_back(Menu);供这个菜单栏的子条目显示访问当前菜单栏的位置和其他信息 EndMenu后弹出
    Menu->EnableMenuItem=enableMenuItem;
    现在的窗口CurrentWindow=CurrentWindowStack.back() 
-   设置Menu的位置大小颜色参数(Menu{菜单栏裁剪矩形，悬浮窗裁剪矩形(HoverRect)、颜色、开启子条目显示标志})
-   Menu->Rect.Width= calcuTextSize("菜单栏的名字",scaleX,scaleY)+spacing*1.7;
-   Menu->Rect.Height=io->fontSize*scaleY+spacing*1.3;
+   设置Menu的位置大小颜色参数(Menu{菜单栏裁剪矩形，悬浮窗裁剪矩形(HoverRect)、DynamicArray<MenuItem>MenuItemStack存储当前子条目、颜色、开启子条目显示标志})
+   Menu->Rect.Width= calcuTextSize("菜单栏的名字",scaleX,scaleY).x+spacing*1.7;
+   Menu->Rect.Height=calcuTextSize("菜单栏的名字",scaleX,scaleY).y+spacing*1.3;
    Menu->Rect.Min=CurrentWindow->CurPos;
    Menu->Rect.Max=CurrentWindow->CurPos+glm::vec2(MenuRect.Width,MenuRect.Height);
    
@@ -114,7 +116,7 @@ bool ui::Menu("菜单栏的名字",bool enableMenuItem是否开启子条目显�
    绘制menu的clip文本(MenuTextPos,menuRect,CurrentWindow->Color[Text],scaleX,scaleY);
    if(CurrentWindow->菜单摆放方式MenuShowOrder==水平摆放)
    {
-           CurrentWindow->CurPos.x+= Menu->Rect.Width+spacing*2.1; 跟踪位置往x轴方向自增距离 
+           CurrentWindow->CurPos.x+= Menu->Rect.Width+spacing*2.1; 跟踪位置往x轴方向自增距离 方便下一个菜单栏绘制 位置访问参数
       
    }
    else if(CurrentWindow->菜单摆放方式MenuShowOrder==垂直摆放)
@@ -126,15 +128,19 @@ bool ui::Menu("菜单栏的名字",bool enableMenuItem是否开启子条目显�
    if(CurrentWindow->AllowResponseEvent)
    {
       是否菜单框吃了鼠标位置
-        if(MenuRect.contain(mousePos))  要明白
+        if(MenuRect.contain(mousePos))  要明白这个菜单栏->Hoverable决定它的悬浮内容是否显示 而这个菜单栏->Hoverable由悬浮窗矩形外的鼠标点击事件和其他菜单栏是否Hoverable来清除 也就只有一个菜单栏Hoverable激活
         {
               改变这个菜单栏的颜色
             Menu->Color=你自己定
+            Menu->Hoverable=true; 
                    
         }
        else
        {
-           
+           现在判断悬浮窗矩形外的鼠标点击事件或其他菜单栏是否Hoverable来清除当前菜单栏->Hoverable
+           bool  OtherMenuHoverable=IsOtherMenuHoverable(CurrentWindow,Menu);主要排除当前Menu查看其他Menu
+           if(!Menu->HoverRect.contain(mousePos)&&io->鼠标左键按下||OtherMenuHoverable)
+             Menu ->Hoverable=false;清除当前菜单栏悬浮窗显示标志
           恢复这个菜单栏原来的颜色
           Menu->Color=CurrentWindow->Color[MenuRect];
 
@@ -142,4 +148,59 @@ bool ui::Menu("菜单栏的名字",bool enableMenuItem是否开启子条目显�
    }
 return Menu->EnableMenuItem;返回这个菜单栏是否允许子条目添加
 }
+
+ui::MenuItem(SubItemname"子条目1"，bool*ShowOtherContextFlag)  仅是往Menu添加子条目
+{
+
+    现在的窗口CurrentWindow=CurrentWindowStack.back();
+    现在的CurrentMenu=CurrentWindow.CurrentMenuStack.back();
+    MenuItem menuItem;{名字、ShowOthercontextFlag、MenuItemTextRect}
+    menuItem.名字=SubItemname"子条目1";
+    menuItem.ShowOthercontextFlag=ShowOtherContextFlag;
+    CurrentMenu.MenuItemStack.push_back(menuItem);
+}
+ui::EndMenu()
+{
+   现在的窗口CurrentWindow=CurrentWindowStack.back();
+    现在的CurrentMenu=CurrentWindow->CurrentMenuStack.back();
+   if( Menu->Hoverable)
+  {
+
+         for(遍历CurrentMenu子条目数组)
+      {
+          float CalhoverRectWidth记录计算每一个子条目文本的宽度 循环获取最大的宽度那就是HoverRect的宽度
+          float CalhoverRectHeight计算每一个子条目文本的高度 累加但每次加点儿spacing 累加后的结果就是HoverRect的高度
+
+      }
+      设置HoverRect的参数
+       Menu->HoverRect.Width=CalhoverRectWidth;
+       Menu->HoverRect.Height=CalhoverRectHeight;
+       Menu->HoverRect.Min=glm::vec2(Menu->MenuRect.Min.x+Menu->MenuRect.Width-spacing*1.2,Menu->MenuRect.Max.y);
+       Menu->HoverRect.Max= Menu->HoverRect.Min+glm::vec2(Menu->HoverRect.Width,Menu->HoverRect.Height);
+     绘制 Menu->HoverRect(Menu->HoverRect.Min,Menu->HoverRect.Max,CurrentWindow->Color[HoverRect])
+   
+    HoverRect中的文本绘制设置
+     HoverRectTextPos=Menu->HoverRect.Min+glm::vec2(spacing*1.2,spacing*1.2);  这个绘制每个子条目的文本累加
+     绘制滚动条 获取滚轮位移 滚动滚动条同时变化HoverRectTextPos 位置变化方向相反
+     for(遍历CurrentMenu子条目数组)
+      {
+
+             设置子条目文本框MenuItemTextRect参数
+             绘制子条目文本框
+            绘制子条目文本（HoverRectTextPos，子条目字符串，缩放比）
+           
+          
+              if(当前子条目的文本框.contain(mousePos)&&io->鼠标左键按下)
+                 *(取地址)子条目的showOtherContextflag=true；
+              else
+                 *(取地址)子条目的showOtherContextflag=false；
+             HoverRectTextPos.y+=每一个子条目文本的高度
+      }
+
+  }
+从CurrentWindow->CurrentMenuStack.pop_back();弹出  方便下一个Menu的存储 因为MenuStack只允许存一个元素 放入后访问后再弹出
+
+}
+
+
 
