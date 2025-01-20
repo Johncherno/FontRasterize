@@ -46,7 +46,7 @@ int main()
           {
               WindowShow = true;
           }
-           ui->StartShowWindow(u8"First窗口内容", true);
+           ui->StartShowWindow(u8"First窗口内容X", true);
            ui->EndShowWindow();//弹出当前窗口需要下一次调用时用另一个窗口的位置
 
           ui->StartShowWindow(u8"Second窗口内容", true);
@@ -59,23 +59,7 @@ int main()
           ui->EndShowWindow();
           RenderDrawData(ui);//绘制UI添加的绘制数据
    
-          // 计算 FPS
-          static double lastTime = glfwGetTime();
-          double currentTime = glfwGetTime();
-          static int frameCount = 0;
-          static double fpsTimer = 0.0;
-          frameCount++;
-          fpsTimer += currentTime - lastTime;
-          lastTime = currentTime;
-
-          if (fpsTimer >= 1.0)
-          {
-              double fps = frameCount / fpsTimer;
-              std::cout << "fps=" << fps << std::endl;
-              frameCount = 0;
-              fpsTimer = 0.0;
-          }
-
+        
          ClearEvent();//清空事件消息
       	glfwSwapBuffers(pwindow);
       	glfwPollEvents();//开始响应键盘 鼠标输入信息

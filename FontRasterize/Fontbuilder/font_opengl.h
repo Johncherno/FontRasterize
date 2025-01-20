@@ -13,9 +13,11 @@ struct DrawVert//发送给OpenGL的顶点数据结构
 };
 struct ClipRect
 {
-	glm::vec2 Min;
-	glm::vec2 Max;
-	ClipRect(glm::vec2 ClipMin, glm::vec2 ClipMax):Min(ClipMin),Max(ClipMax){}
+	glm::vec2 Min;//裁剪矩形左上角坐标
+	glm::vec2 Max;//裁剪矩形右上角坐标
+	float Width;//裁剪矩形的宽度
+	float Height;//裁剪矩形的高度
+	ClipRect(glm::vec2 ClipMin, glm::vec2 ClipMax) :Min(ClipMin), Max(ClipMax) { this->Width = Max.x - Min.x; this->Height = Max.y - Min.y; }
 	ClipRect() = default;
 	bool Contain(glm::vec2 p) const { return p.x >= Min.x && p.y >= Min.y && p.x < Max.x && p.y < Max.y; }//检查是否涵盖鼠标位置
 };
@@ -43,8 +45,7 @@ struct DrawList
 	void AddRectFill(glm::vec2 Min, glm::vec2 Max, glm::vec4 color, float rounding, float scale);//绘制圆角文本框进行颜色填充
 	void AddText_VertTriangleBorder(glm::vec2 TextPosition, glm::vec4 LineColor, const char* Text, float scalex, float scaley,float thickness);//绘制字符串的方块顶点三角边框
 	void AddText(glm::vec2 TextPosition, glm::vec4 TextColor, const char* Text, float scalex, float scaley);	
-	
-	//void AddRotText(glm::vec2 TextPosition, glm::vec3 TextColor, const char* Text, FontAtlas* atlas, float scalex, float scaley, float time);
+	void AddTextSizeRectBorder(glm::vec2 StartPosition,glm::vec2 TextSize,glm::vec4 Color,float thickness);
 	void AddClipText(glm::vec2 TextPosition, glm::vec4 TextColor, const char* Text, ClipRect clipRect, float scalex, float scaley);
 	void RendeAllCharactersIntoScreen(glm::vec2 pos, float ConstraintWidth, glm::vec4 Col, float scalex, float scaley);
 	//成员变量
@@ -57,7 +58,12 @@ struct DrawList
 
 
 };
-
+enum ColStyle
+{
+	TitleRectCol,//标题栏
+	OutterRectCol,//外部裁剪窗口
+	TextCol,//文本绘制颜色
+};
 struct KeyEvent { int key; bool press; };//按键消息结构体
 struct InputEventParam//输入消息参数   鼠标XY位移  鼠标按键信息  鼠标屏幕位置  滚轮条的滚动位移 KeyEvent{int key bool press} 按键消息
 {
@@ -79,14 +85,20 @@ struct ShowWindowContainer
 	ShowWindowContainer()//初始化显示窗口的各个参数
 	{
 		this->Pos= glm::vec2(0, 0);//显示窗口绘制位置
-		this->TitleColor= glm::vec4(0, 0, 1, 1);//自己窗口标题的颜色
 		this->content.drawlist = DrawList();
+		this->cursorPos = glm::vec2(0,0);
 		this->TitleRect = ClipRect(this->Pos, this->Pos + glm::vec2(460, 70));
-		this->OutterRect = ClipRect(this->Pos, this->Pos + glm::vec2(460, 490));//初始化自己窗口的外部裁剪矩形
+		this->OutterRect = ClipRect(this->Pos, this->Pos + glm::vec2(560, 590));//初始化自己窗口的外部裁剪矩形
+
+		this->COLOR[TitleRectCol] = glm::vec4(1,0,1,1);
+		this->COLOR[OutterRectCol] = glm::vec4(0.4, 0, 0.2, 1);
+		this->COLOR[TextCol] = glm::vec4(1.0, 1.0, 1.0, 1);
+
 		this->content.VertexBufferSize = 0;//自己窗口存储的顶点个数
 		this->content.IdxBufferSize = 0;//自己窗口存储的索引绘制个数
 		this->ScaleX = 1.0f;//初始化自己窗口的缩放大小
 		this->ScaleY = 1.0f;
+		this->spacing = 2.0f;
 		//设置自己窗口的各种判断事件的判断标志
 		this->Flag.AllowResponseInputEvent = false;
 		this->Flag.Bring_Front = false;
@@ -99,24 +111,23 @@ struct ShowWindowContainer
 		bool IsWindowVisible = true;//是否允许窗口显示即是否将本身窗口绘制资源顶点发送给GPU
 	};
 	glm::vec2 Pos ;//显示窗口绘制位置
-	glm::vec4 TitleColor ;//自己窗口标题的颜色
+	glm::vec2 cursorPos;//每一个绘制内容的跟踪位置
 
 	ClipRect TitleRect;//标题框裁剪矩形
 	ClipRect OutterRect;//自家窗口的外部裁剪矩形
-
+	glm::vec4 COLOR[6];//不同在内容对应的颜色
 
 	gl_Content content; // 自家窗口的绘制资源 自家窗口的绘制列表 每个窗口都有自己的glbuffer 自己窗口的顶点缓冲的Vtx Idx属性
+	float spacing = 2.0f;//显示内容相互之间的距离
 	float ScaleX, ScaleY;//自己窗口的绘制内容的缩放比例
-	ShowWindowflag Flag;
+	ShowWindowflag Flag;//自己窗口的一些事件判定标志
 };
 struct DrawData
 {
-	
 	glm::vec2 DisplayPos;//视口显示位置
 	glm::vec2 DisplaySize;//视口屏幕大小 也是正交投影的视口
 	glm::vec2 framebufferscale;//帧缓冲视口缩放大小
 	DynamicArray<ShowWindowContainer*>DrawDataLayerBuffer;//存储每个窗口图层的绘制资源 和一些判断状态  改成这样不用像之前那样再访问遍历窗口容器再进行拷贝
-	
 };
 
 class UI

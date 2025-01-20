@@ -1,8 +1,6 @@
 #include "font_opengl.h"
 
 
-
-
 static void CheckGLError(const char* stmt, const char* fname, int line) {
 	GLenum err = glGetError();
 	while (err != GL_NO_ERROR) {
@@ -12,10 +10,18 @@ static void CheckGLError(const char* stmt, const char* fname, int line) {
 }
 #define GL_CHECK(stmt) do { stmt; CheckGLError(#stmt, __FILE__, __LINE__); } while (0)
 #define PI 3.14159265358979323846f
+//下面是一些所需要基本的数学操作
+static void Clamp(float&value, float Min, float Max)//限制区间函数
+{
+	if (value > Max)
+		value= Max;
+	else if (value < Min)
+		value = Min;
+	//如果在这区间就什么不做 是什么值就是什么
+}
 
 //io输入输出端口
 BuiltIO* io = nullptr;//总信息的访问口
-
 static DynamicArray<unsigned int> TextChar_utf_8_ToUnicode(const char* utf8_str)
 {
 	DynamicArray<unsigned int>  unicode_points;
@@ -60,8 +66,24 @@ static DynamicArray<unsigned int> TextChar_utf_8_ToUnicode(const char* utf8_str)
 	}
 	return unicode_points;
 }
-
-
+//计算单个文本的宽高
+static glm::vec2 CalcuTextSize(const char*Text,float scalex,float scaley)
+{
+	//获取io的字体方块的X0 X1 Y0 Y1 计算字符方块宽度 字符方块高度 字符步进距离Advance 通过累加（每个字符的宽度 步进距离）=总文本宽度 取每个字符的高度的最大值就是文本的高度
+	glm::vec2 textSize = glm::vec2(0,0);
+	DynamicArray<unsigned int> str = TextChar_utf_8_ToUnicode(Text);//将utf-8转为unicode索引
+	for (unsigned int i=0;i<str.size();i++)
+	{
+		unsigned int C = static_cast<unsigned int>(str[i]);
+		unsigned int glyphid = 0;
+		if (!io->atlas.glyphfonts->FindGlyph(C, glyphid))//寻找字符字形索引
+			continue;
+		FontGlyph glyph = io->atlas.glyphfonts->Glyphs[glyphid];
+		textSize.y = std::max(textSize.y,fabs(scaley*(glyph.Y1- glyph.Y0)));
+		textSize.x += scalex * glyph.AdvanceX;
+	}
+	return  textSize;
+}
 //圆周率
 void DrawList::Clear()
 {
@@ -78,7 +100,6 @@ void DrawList::ReserveForBuffer(unsigned int vtxcount, unsigned int idxcount)
 	unsigned int oldVtxSize = this->_VtxBuffer.size();
 	this->_VtxBuffer.resize(oldVtxSize + vtxcount);
 	this->VtxWritePtr = this->_VtxBuffer.Data + oldVtxSize;
-
 	unsigned int oldIdxSize = this->_IdxBuffer.size();
 	this->_IdxBuffer.resize(oldIdxSize + idxcount);
 	this->_IdxWritePtr = this->_IdxBuffer.Data + oldIdxSize;
@@ -255,15 +276,7 @@ void DrawList::AddText_VertTriangleBorder(glm::vec2 TextPosition, glm::vec4 Line
 			Pos.x = TextPosition.x;
 			continue;
 		}
-
-		// 检查字符是否在有效范围内
-		if (C >= io->atlas.glyphfonts->IndexSearchTable.size()) {
-			continue; // 无效字符，跳过
-		}
 		unsigned int glyphid = 0;
-		if (glyphid >= io->atlas.glyphfonts->Glyphs.size()) {
-			continue; // 字形ID无效，跳过
-		}
 		if (!io->atlas.glyphfonts->FindGlyph(C, glyphid))//寻找字符字形索引
 			continue;
 		FontGlyph glyph = io->atlas.glyphfonts->Glyphs[glyphid];
@@ -295,14 +308,7 @@ void DrawList::AddText(glm::vec2 TextPosition, glm::vec4 TextColor, const char* 
 			Pos.x = TextPosition.x;
 			continue;
 		}
-		// 检查字符是否在有效范围内
-		if (C >= io->atlas.glyphfonts->IndexSearchTable.size()) {
-			continue; // 无效字符，跳过
-		}
 		unsigned int glyphid = 0;
-		if (glyphid >= io->atlas.glyphfonts->Glyphs.size()) {
-			continue; // 字形ID无效，跳过
-		}
 		if (!io->atlas.glyphfonts->FindGlyph(C, glyphid))//寻找字符字形索引
 			continue;
 		FontGlyph glyph = io->atlas.glyphfonts->Glyphs[glyphid];
@@ -340,6 +346,14 @@ void DrawList::AddText(glm::vec2 TextPosition, glm::vec4 TextColor, const char* 
 
 
 	}
+}
+
+void DrawList::AddTextSizeRectBorder(glm::vec2 StartPosition, glm::vec2 TextSize, glm::vec4 Color, float thickness)
+{
+	AddLine(StartPosition,glm::vec2(StartPosition.x, StartPosition.y- TextSize.y),Color,thickness);
+	AddLine(glm::vec2(StartPosition.x, StartPosition.y - TextSize.y), glm::vec2(StartPosition.x+ TextSize.x, StartPosition.y - TextSize.y),Color,thickness);
+	AddLine(glm::vec2(StartPosition.x + TextSize.x, StartPosition.y - TextSize.y), glm::vec2(StartPosition.x + TextSize.x, StartPosition.y ),Color, thickness);
+	AddLine(glm::vec2(StartPosition.x + TextSize.x, StartPosition.y), StartPosition, Color, thickness);
 }
 
 //void DrawList::AddNumber(glm::vec2 Position, glm::vec3 Color, float Number, int Precision, float scalex, float scaley)
@@ -466,14 +480,7 @@ void DrawList::AddClipText(glm::vec2 TextPosition, glm::vec4 TextColor, const ch
 			continue;
 		}
 
-		// 检查字符是否在有效范围内
-		if (C >= io->atlas.glyphfonts->IndexSearchTable.size()) {
-			continue; // 无效字符，跳过
-		}
 		unsigned int glyphid = 0;
-		if (glyphid >= io->atlas.glyphfonts->Glyphs.size()) {
-			continue; // 字形ID无效，跳过
-		}
 		if (!io->atlas.glyphfonts->FindGlyph(C, glyphid))//寻找字符字形索引
 			continue;
 		FontGlyph glyph = io->atlas.glyphfonts->Glyphs[glyphid];
@@ -488,11 +495,6 @@ void DrawList::AddClipText(glm::vec2 TextPosition, glm::vec4 TextColor, const ch
 		float x1 = glyph.X1 * scalex + Pos.x;//max.x
 		float y1 = glyph.Y1 * scaley + Pos.y;//max.y
 
-		/*	std::cout << "clipRect.Min.x=" << clipRect.Min.x << std::endl;
-			std::cout << "clipRect.Max.x="<< clipRect.Max.x << std::endl;
-			std::cout << "x0="<<x0 << std::endl;
-			std::cout << "x1=" << x1 << std::endl;
-			std::cout << " " << std::endl;*/
 		if (x1 <= clipRect.Max.x && x0 >= clipRect.Min.x)
 		{
 			//std::cout << "条件成立" << std::endl;
@@ -610,7 +612,7 @@ void BuiltIO::CreateFontTexture()
 		std::cerr << "Error: Shader failed to load." << std::endl;
 		return; // 或者终止程序
 	}
-	//建立drawlist函数表格查
+	//建立drawlist三角角度函数表格查
 	this->initializeArcTable();
 }
 
@@ -723,15 +725,15 @@ void BuiltIO::RenderDrawList()
 	{
 		ShowWindowContainer*DrawDataLayer = this->drawdata.DrawDataLayerBuffer[i];
 		//std::cout << "绘制窗口的顶点个数" << DrawDataLayer->content.drawlist._VtxBuffer.size() << std::endl;
-		if (!DrawDataLayer->Flag.IsWindowVisible)//如果这个窗口不允许显示就不执行下面操作
+		if (!DrawDataLayer->Flag.IsWindowVisible)//如果这个窗口不允许显示就不执行下面发送给gpu顶点缓冲操作
 		{
-			DrawDataLayer->content.drawlist.Clear();//同时你这个窗口资源不发送显示 直接清除掉
+			DrawDataLayer->content.drawlist.Clear();//同时你这个窗口顶点绘制资源不发送显示 直接清除掉
 			continue;
 		}
 			
 		DrawList* cmdDrawlist = &DrawDataLayer->content.drawlist;//获取的是每一个允许显示窗口的绘制内容
-		DynamicArray<DrawVert>& vtxBuffer = cmdDrawlist->_VtxBuffer;
-		DynamicArray<unsigned int>& idxBuffer = cmdDrawlist->_IdxBuffer;
+		DynamicArray<DrawVert> vtxBuffer = cmdDrawlist->_VtxBuffer;
+		DynamicArray<unsigned int> idxBuffer = cmdDrawlist->_IdxBuffer;
 		// 设置顶点数组对象和绑定缓冲区
 		SetUpBufferState(DrawDataLayer->content.Vao, DrawDataLayer->content.Vbo, DrawDataLayer->content.Ebo);
 		// 计算顶点缓冲区大小
@@ -767,11 +769,7 @@ void BuiltIO::RenderDrawList()
 		GL_CHECK(glBindVertexArray(DrawDataLayer->content.Vao));
 		GL_CHECK(glDrawElements(GL_TRIANGLES, DrawDataLayer->content.IdxBufferSize, GL_UNSIGNED_INT, 0));
 		GL_CHECK(glBindVertexArray(0));
-
-
 	}
-
-
 }
 
 void BuiltIO::DeleteResource()
@@ -901,55 +899,25 @@ void UI::StartShowWindow(const char* Text, bool Popen)
 		showWindow = CreateNewShowWindow(Text); //防止一直new造成程序崩溃
 	}
 	showWindow->Flag.IsWindowVisible = Popen;
-
-
-	//设置窗口的外部裁剪矩形 同时也能保证更新外部裁剪矩形参数
+	//先计算标题的文本宽高
+	glm::vec2 TextSize = CalcuTextSize(Text,showWindow->ScaleX, showWindow->ScaleY);
+	//设置title标题栏的宽度、高度和外部裁剪框的宽度
+	showWindow->TitleRect.Width = showWindow->OutterRect.Width=TextSize.x + showWindow->spacing * 3.8;
+	showWindow->TitleRect.Height = TextSize.y + showWindow->spacing * 1.5;//标题框高度
+	//设置OutterRect的左上角 右下角位置  
 	showWindow->OutterRect.Min = showWindow->Pos;
-	showWindow->OutterRect.Max = showWindow->Pos +glm::vec2(460, 490);
-	showWindow->content.drawlist.AddRectFill(showWindow->OutterRect.Min, showWindow->OutterRect.Max, showWindow->TitleColor, 9.0f, 1);
-	showWindow->content.drawlist.AddRectBorder(showWindow->OutterRect.Min, showWindow->OutterRect.Max,glm::vec4(1,1,0,1),2.0f);
-	//showWindow->drawlist.AddRectTriangleBorder(showWindow->OutterRect.Min, showWindow->OutterRect.Max, glm::vec4(1, 1, 0, 1), 1.3f);
-	showWindow->content.drawlist.AddClipText(showWindow->Pos + glm::vec2(0, 53), glm::vec4(0, 1,1, 1), Text, showWindow->OutterRect,showWindow->ScaleX, showWindow->ScaleY);//绘制标题
-
-	if (showWindow->OutterRect.Contain(io->InputMessage.MousePos) && showWindow->Flag.AllowResponseInputEvent)//是否当前窗口的Rect吃了鼠标位置 并且允许响应事件 
-	{
-		showWindow->TitleColor = glm::vec4(0, 0.2, 0.2,1);
-		if (io->InputMessage.KeyMesage.key == GLFW_KEY_LEFT_CONTROL && io->InputMessage.KeyMesage.press)
-		{
-			showWindow->ScaleX += io->InputMessage.Scroll * 0.05f; // 滚动的增量控制大小的变化比例
-			showWindow->ScaleY += io->InputMessage.Scroll * 0.05f;
-		}
-		if (io->InputMessage.KeyMesage.key == GLFW_KEY_T && io->InputMessage.KeyMesage.press)//如果T按键按下绘制字体文本的顶点
-		{
-			
-			showWindow->content.drawlist.AddText_VertTriangleBorder(showWindow->Pos + glm::vec2(0, 53), glm::vec4(1, 0, 1, 1), Text, showWindow->ScaleX, showWindow->ScaleY,1.1);
-		}
-
-		if (io->InputMessage.MouseDown[GLFW_MOUSE_BUTTON_LEFT])//如果对当前窗口有点击执行置顶 获取鼠标位移进行窗口位置移动
-		{
-			io->Has_Bring_front_opera = true;
-			showWindow->Flag.Bring_Front = true;
-			showWindow->Pos += io->InputMessage.MouseDeltaOffset;
-		}
-		else
-		{
-			io->Has_Bring_front_opera = false;
-			showWindow->Flag.Bring_Front = false;
-		}
-
-	}
-	else
-	{
-		showWindow->TitleColor = glm::vec4(0,0.2, 0,1);
-	}
-	
-	if (showWindow->ScaleX < 0.1f)showWindow->ScaleX = 0.1f;
-	if (showWindow->ScaleY > 3.0f)showWindow->ScaleY = 3.0f;
-
-	if (showWindow->ScaleX < 0.1f) showWindow->ScaleX = 0.1f;
-	if (showWindow->ScaleY > 3.0f) showWindow->ScaleY = 3.0f;
-	this->CurrentShowWindowStack.push_back(showWindow);//这个是要在绘制当前窗口的子条目文本时需要用到当前窗口的主要位置 需要后期给弹出去
-	
+	showWindow->OutterRect.Max = showWindow->Pos + glm::vec2(showWindow->OutterRect.Width, showWindow->OutterRect.Height);
+	//设置Title标题框左上角 右下角位置
+	showWindow->TitleRect.Min = showWindow->Pos;
+	showWindow->TitleRect.Max = showWindow->Pos + glm::vec2(showWindow->TitleRect.Width, showWindow->TitleRect.Height);
+	//	设置标题文本显示位置
+	glm::vec2 TitleTextPos = showWindow->Pos + glm::vec2(showWindow->spacing * showWindow->ScaleX * 2, showWindow->spacing * showWindow->ScaleY * 2);
+	 //绘制OutterRect外部裁剪矩形
+	 showWindow->content.drawlist.AddRectFill(showWindow->OutterRect.Min, showWindow->OutterRect.Max,showWindow->COLOR[OutterRectCol],9,showWindow->ScaleX);
+	 // 绘制titleRect标题裁剪矩形
+	 showWindow->content.drawlist.AddRectFill(showWindow->TitleRect.Min, showWindow->TitleRect.Max, showWindow->COLOR[TitleRectCol], 9, showWindow->ScaleX);
+	//绘制title文本ClipText
+	 showWindow->content.drawlist.AddClipText(TitleTextPos,showWindow->COLOR[TextCol],Text, showWindow->TitleRect,showWindow->ScaleX,showWindow->ScaleY);
 }
 
 void UI::EndShowWindow()
@@ -980,4 +948,125 @@ ShowWindowContainer* UI::FindShowWindowByName(const char* name)
 		return this->NameToShowWindowMap[name];
 	return nullptr;
 }
+//后期加的UI代码架构
+//SetUpCurrentIO() io设置
+//
+//SetupBackUpdata(); 创建绘制数据顶点数组 创建字体字符图集 并加载着色器
+//
+//
+//while (1)渲染循环
+//{
+//	  UpdateEvent(pwindow); 更新鼠标XY位移（mouseDeltaXoffset mouseDeltaYoffset） 鼠标屏幕位置(mousePos)  更新滚轮条的滚动位移scroll 键盘判断处理事件 窗口的视口大小位置 绘制正交投影视口
+//
+//	  ui::StartShowWindow("...标题"，popen)主窗口 popen代表窗口是否打开
+//	  if (ui::Menu("..菜单栏名字"，Horizontal  Vertical子条目是竖直摆放 还是水平摆放))   如果鼠标悬浮在此就显示单个菜单栏的子条目
+//	  {
+//			ui::MenuItem("..子条目1"，是否启动其他函数显示文字元素的标志（假如这个是ShowScdW）); 借用在fontopengl.cpp io里的Drawdata
+//			ui::MenuItem("..子条目2"，是否启动其他函数显示文字元素的标志);
+//			ui::MenuItem("..子条目3"，是否启动其他函数显示文字元素的标志);
+//			ui::MenuItem("..子条目4"，是否启动其他函数显示文字元素的标志);
+//			ui::MenuItem("..子条目5"，是否启动其他函数显示文字元素的标志);
+//	  }此时drawlist已经装上了文本顶点缓冲
+//	  ui::EndMenu();
+//	 ui::EndThisShowWindow();
+//
+//	 ui::StartShowWindow（......,ShowScdW）
+//
+//	 .......
+//	 ui::EndThisShowWindow()
+//
+//	  RenderDrawData(); 将DrawData的drawlist framebufferscale displayPos displaySize发送给OpenGL调用gl命令绘制
+//}
+//
+//
+//
+//
+//之前的StartshowWindow逻辑
+////设置窗口的外部裁剪矩形 同时也能保证更新外部裁剪矩形参数
+//showWindow->OutterRect.Min = showWindow->Pos;
+//showWindow->OutterRect.Max = showWindow->Pos + glm::vec2(460, 490);
+//showWindow->content.drawlist.AddRectFill(showWindow->OutterRect.Min, showWindow->OutterRect.Max, showWindow->TitleColor, 9.0f, 1);
+//showWindow->content.drawlist.AddRectBorder(showWindow->OutterRect.Min, showWindow->OutterRect.Max, glm::vec4(1, 1, 0, 1), 2.0f);
+////showWindow->drawlist.AddRectTriangleBorder(showWindow->OutterRect.Min, showWindow->OutterRect.Max, glm::vec4(1, 1, 0, 1), 1.3f);
+//showWindow->content.drawlist.AddClipText(showWindow->Pos + glm::vec2(0, 53), glm::vec4(0, 1, 1, 1), Text, showWindow->OutterRect, showWindow->ScaleX, showWindow->ScaleY);//绘制标题
+//
+//if (showWindow->OutterRect.Contain(io->InputMessage.MousePos) && showWindow->Flag.AllowResponseInputEvent)//是否当前窗口的Rect吃了鼠标位置 并且允许响应事件 
+//{
+//	showWindow->TitleColor = glm::vec4(0, 0.2, 0.2, 1);
+//	if (io->InputMessage.KeyMesage.key == GLFW_KEY_LEFT_CONTROL && io->InputMessage.KeyMesage.press)
+//	{
+//		showWindow->ScaleX += io->InputMessage.Scroll * 0.05f; // 滚动的增量控制大小的变化比例
+//		showWindow->ScaleY += io->InputMessage.Scroll * 0.05f;
+//	}
+//	if (io->InputMessage.KeyMesage.key == GLFW_KEY_T && io->InputMessage.KeyMesage.press)//如果T按键按下绘制字体文本的顶点
+//	{
+//		glm::vec2 textSize = CalcuTextSize(Text, showWindow->ScaleX, showWindow->ScaleY);
+//		showWindow->content.drawlist.AddTextSizeRectBorder(showWindow->Pos + glm::vec2(0, 53), textSize, glm::vec4(1, 0, 1, 1), 1.3);
+//		/*showWindow->content.drawlist.AddText_VertTriangleBorder(showWindow->Pos + glm::vec2(0, 53), glm::vec4(1, 0, 1, 1), Text, showWindow->ScaleX, showWindow->ScaleY,1.1);*/
+//	}
+//
+//	if (io->InputMessage.MouseDown[GLFW_MOUSE_BUTTON_LEFT])//如果对当前窗口有点击执行置顶 获取鼠标位移进行窗口位置移动
+//	{
+//		io->Has_Bring_front_opera = true;
+//		showWindow->Flag.Bring_Front = true;
+//		showWindow->Pos += io->InputMessage.MouseDeltaOffset;
+//	}
+//	else
+//	{
+//		io->Has_Bring_front_opera = false;
+//		showWindow->Flag.Bring_Front = false;
+//	}
+//
+//}
+//else
+//{
+//	showWindow->TitleColor = glm::vec4(0, 0.2, 0, 1);
+//}
+//Clamp(showWindow->ScaleX, 0.1f, 3.0f);
+//Clamp(showWindow->ScaleY, 0.1f, 3.0f);
+//this->CurrentShowWindowStack.push_back(showWindow);//这个是要在绘制当前窗口的子条目文本时需要用到当前窗口的主要位置需要后期给弹出去
 
+	//之前的StartshowWindow逻辑
+////设置窗口的外部裁剪矩形 同时也能保证更新外部裁剪矩形参数
+//showWindow->OutterRect.Min = showWindow->Pos;
+//showWindow->OutterRect.Max = showWindow->Pos + glm::vec2(460, 490);
+//showWindow->content.drawlist.AddRectFill(showWindow->OutterRect.Min, showWindow->OutterRect.Max, showWindow->TitleColor, 9.0f, 1);
+//showWindow->content.drawlist.AddRectBorder(showWindow->OutterRect.Min, showWindow->OutterRect.Max, glm::vec4(1, 1, 0, 1), 2.0f);
+////showWindow->drawlist.AddRectTriangleBorder(showWindow->OutterRect.Min, showWindow->OutterRect.Max, glm::vec4(1, 1, 0, 1), 1.3f);
+//showWindow->content.drawlist.AddClipText(showWindow->Pos + glm::vec2(0, 53), glm::vec4(0, 1, 1, 1), Text, showWindow->OutterRect, showWindow->ScaleX, showWindow->ScaleY);//绘制标题
+//
+//if (showWindow->OutterRect.Contain(io->InputMessage.MousePos) && showWindow->Flag.AllowResponseInputEvent)//是否当前窗口的Rect吃了鼠标位置 并且允许响应事件 
+//{
+//	showWindow->TitleColor = glm::vec4(0, 0.2, 0.2, 1);
+//	if (io->InputMessage.KeyMesage.key == GLFW_KEY_LEFT_CONTROL && io->InputMessage.KeyMesage.press)
+//	{
+//		showWindow->ScaleX += io->InputMessage.Scroll * 0.05f; // 滚动的增量控制大小的变化比例
+//		showWindow->ScaleY += io->InputMessage.Scroll * 0.05f;
+//	}
+//	if (io->InputMessage.KeyMesage.key == GLFW_KEY_T && io->InputMessage.KeyMesage.press)//如果T按键按下绘制字体文本的顶点
+//	{
+//		glm::vec2 textSize = CalcuTextSize(Text, showWindow->ScaleX, showWindow->ScaleY);
+//		showWindow->content.drawlist.AddTextSizeRectBorder(showWindow->Pos + glm::vec2(0, 53), textSize, glm::vec4(1, 0, 1, 1), 1.3);
+//		/*showWindow->content.drawlist.AddText_VertTriangleBorder(showWindow->Pos + glm::vec2(0, 53), glm::vec4(1, 0, 1, 1), Text, showWindow->ScaleX, showWindow->ScaleY,1.1);*/
+//	}
+//
+//	if (io->InputMessage.MouseDown[GLFW_MOUSE_BUTTON_LEFT])//如果对当前窗口有点击执行置顶 获取鼠标位移进行窗口位置移动
+//	{
+//		io->Has_Bring_front_opera = true;
+//		showWindow->Flag.Bring_Front = true;
+//		showWindow->Pos += io->InputMessage.MouseDeltaOffset;
+//	}
+//	else
+//	{
+//		io->Has_Bring_front_opera = false;
+//		showWindow->Flag.Bring_Front = false;
+//	}
+//
+//}
+//else
+//{
+//	showWindow->TitleColor = glm::vec4(0, 0.2, 0, 1);
+//}
+//Clamp(showWindow->ScaleX, 0.1f, 3.0f);
+//Clamp(showWindow->ScaleY, 0.1f, 3.0f);
+//this->CurrentShowWindowStack.push_back(showWindow);//这个是要在绘制当前窗口的子条目文本时需要用到当前窗口的主要位置 需要后期给弹出去

@@ -1236,9 +1236,13 @@ void font_of_characters::buildLookUpTable_Glyph_CharCodePoint()
 }
 bool font_of_characters::FindGlyph(unsigned int CodePoint, unsigned int& glyphID)
 {
+	if (CodePoint>this->IndexSearchTable.size())
+		return false;
 	if (this->IndexSearchTable[CodePoint] != -1)
 	{
 		glyphID = this->IndexSearchTable[CodePoint];
+		if (glyphID>this->Glyphs.size())
+			return false;
 		return true;
 	}
 
