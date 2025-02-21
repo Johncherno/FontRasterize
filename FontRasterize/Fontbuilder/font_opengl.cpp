@@ -10,18 +10,29 @@ static void CheckGLError(const char* stmt, const char* fname, int line) {
 }
 #define GL_CHECK(stmt) do { stmt; CheckGLError(#stmt, __FILE__, __LINE__); } while (0)
 #define PI 3.14159265358979323846f
-//下面是一些所需要基本的数学操作
-static void Clamp(float&value, float Min, float Max)//限制区间函数
-{
-	if (value > Max)
-		value= Max;
-	else if (value < Min)
-		value = Min;
-	//如果在这区间就什么不做 是什么值就是什么
-}
-
 //io输入输出端口
 BuiltIO* io = nullptr;//总信息的访问口
+static bool IsOtherMenuHoverable(ShowWindowContainer*ShowWin,ShowMenu*showmenu)
+{
+	for (ShowMenu*tmpMenu:ShowWin->MenuArray)
+	{
+		if (tmpMenu!=showmenu)
+		{
+			if (tmpMenu->MenuRect.Contain(io->InputMessage.MousePos))//只要出这个菜单之外的菜单有悬浮反应就会打断本菜单的悬浮
+				return true;	
+		}
+	}
+	return false;
+}
+static void Clamp(float&Value,float Min,float Max)//限制函数功能
+{
+	if (Value > Max)
+		Value = Max;
+	else if (Value < Min)
+		Value = Min;
+	//在这个区间什么都不做
+}
+
 static DynamicArray<unsigned int> TextChar_utf_8_ToUnicode(const char* utf8_str)
 {
 	DynamicArray<unsigned int>  unicode_points;
@@ -827,6 +838,14 @@ void BuildBackendData()
 {
 	io->CreateFontTexture();//创建字体字符图集 并加载着色器 加载着色器时导致glBindVertexArray()这个OpenGL错误
 	//io->SetupDrawData_VtxList(); //创建绘制数据顶点数组
+	//设置默认的颜色
+	io->Colors[TextCol] = glm::vec4(1, 1,1, 1);
+	io->Colors[TitleRectCol] = glm::vec4(0.1, 0.1, 0.7, 1);
+	io->Colors[OutterRectCol] = glm::vec4(0.2, 0.2, 0.2, 1);
+	io->Colors[MenuRectCol] = glm::vec4(0.3, 0.1, 0.1, 1);
+	io->Colors[HoverRectCol] = glm::vec4(0.4, 0.2, 0.2, 1);
+	io->Colors[HoverTextRectCol] = glm::vec4(0.2, 0.1, 0.1, 1);
+	io->Colors[ScrollBarCol]= glm::vec4(0.4, 0.4, 0.4, 1);
 }
 
 BuiltIO* GetIo()
@@ -901,9 +920,9 @@ void UI::StartShowWindow(const char* Text, bool Popen)
 	showWindow->Flag.IsWindowVisible = Popen;
 	//先计算标题的文本宽高
 	glm::vec2 TextSize = CalcuTextSize(Text,showWindow->ScaleX, showWindow->ScaleY);
-	//设置title标题栏的宽度、高度和外部裁剪框的宽度
-	showWindow->TitleRect.Width = showWindow->OutterRect.Width=TextSize.x + showWindow->spacing * 3.8;
-	showWindow->TitleRect.Height = TextSize.y + showWindow->spacing * 1.5;//标题框高度
+	//设置title标题栏的宽度、高度和外部裁剪框的宽度   后期再添加通过判断是否为第一帧 通过改变变量累次改变整个外部矩形 和标题框矩形的宽高
+	showWindow->TitleRect.Width = showWindow->OutterRect.Width=TextSize.x + showWindow->spacing *showWindow->ScaleX* 149.8;
+	showWindow->TitleRect.Height = TextSize.y + showWindow->spacing * showWindow->ScaleY *7.5;//标题框高度
 	//设置OutterRect的左上角 右下角位置  
 	showWindow->OutterRect.Min = showWindow->Pos;
 	showWindow->OutterRect.Max = showWindow->Pos + glm::vec2(showWindow->OutterRect.Width, showWindow->OutterRect.Height);
@@ -911,15 +930,239 @@ void UI::StartShowWindow(const char* Text, bool Popen)
 	showWindow->TitleRect.Min = showWindow->Pos;
 	showWindow->TitleRect.Max = showWindow->Pos + glm::vec2(showWindow->TitleRect.Width, showWindow->TitleRect.Height);
 	//	设置标题文本显示位置
-	glm::vec2 TitleTextPos = showWindow->Pos + glm::vec2(showWindow->spacing * showWindow->ScaleX * 2, showWindow->spacing * showWindow->ScaleY * 2);
+	glm::vec2 TitleTextPos = showWindow->TitleRect.Min 
+		+glm::vec2(showWindow->spacing  , showWindow->spacing )
+		+ glm::vec2(0, TextSize.y);//文本绘制位置 =文本框最小位置 空出一些间隔 再空出文本高度再绘制
 	 //绘制OutterRect外部裁剪矩形
-	 showWindow->content.drawlist.AddRectFill(showWindow->OutterRect.Min, showWindow->OutterRect.Max,showWindow->COLOR[OutterRectCol],9,showWindow->ScaleX);
+	 showWindow->content.drawlist.AddRectFill(showWindow->OutterRect.Min, showWindow->OutterRect.Max,showWindow->COLOR[OutterRectCol],9,1);
 	 // 绘制titleRect标题裁剪矩形
-	 showWindow->content.drawlist.AddRectFill(showWindow->TitleRect.Min, showWindow->TitleRect.Max, showWindow->COLOR[TitleRectCol], 9, showWindow->ScaleX);
+	 showWindow->content.drawlist.AddRectFill(showWindow->TitleRect.Min, showWindow->TitleRect.Max, showWindow->COLOR[TitleRectCol], 9, 1);
 	//绘制title文本ClipText
 	 showWindow->content.drawlist.AddClipText(TitleTextPos,showWindow->COLOR[TextCol],Text, showWindow->TitleRect,showWindow->ScaleX,showWindow->ScaleY);
+	 //先将每个绘制内容颜色设置成默认在颜色 看下面有在操作可以改变这个颜色不 如果下边有操作可以改变这个颜色那就执行 如果没有相当于恢复原来在颜色
+	 showWindow->COLOR[OutterRectCol] = io->Colors[OutterRectCol];
+	 showWindow->COLOR[TitleRectCol] = io->Colors[TitleRectCol];
+	 showWindow->COLOR[TextCol] = io->Colors[TextCol];
+
+	 if (showWindow->Flag.AllowResponseInputEvent)//如果当前窗口允许响应输入事件
+	 {
+		 if (showWindow->OutterRect.Contain(io->InputMessage.MousePos))//如果鼠标悬停在这个外部裁剪矩形
+		 {
+			 //outterRect的颜色改变 否则颜色恢复原来
+			 showWindow->COLOR[OutterRectCol] = glm::vec4(0.2,0.2,0,1);
+			 //看是否标题文本框吃了鼠标 吃了outterRect的颜色恢复原来  TitleRect的颜色改变
+			 if (showWindow->TitleRect.Contain(io->InputMessage.MousePos))
+			 {
+				 showWindow->COLOR[OutterRectCol] = io->Colors[OutterRectCol];
+				 showWindow->COLOR[TitleRectCol] = glm::vec4(0.3,0.4,0.3,1);
+			 }
+		     //响应滚轮 判断按键改变内容的缩放比例
+			 if (io->InputMessage.KeyMesage.key == GLFW_KEY_LEFT_CONTROL && io->InputMessage.KeyMesage.press)
+			 {
+				 showWindow->ScaleX += io->InputMessage.Scroll * 0.05f; // 滚动的增量控制大小的变化比例
+				 showWindow->ScaleY += io->InputMessage.Scroll * 0.05f;
+			 }
+			 //等到鼠标左键按下 移动窗口位置 置顶操作
+			 if (io->InputMessage.MouseDown[GLFW_MOUSE_BUTTON_LEFT])//如果对当前窗口有点击执行置顶 获取鼠标位移进行窗口位置移动
+			 {
+				 io->Has_Bring_front_opera = true;
+				 showWindow->Flag.Bring_Front = true;
+				 if(showWindow->Flag.Movable)//如果窗口移动的标志判断被激活了允许移动
+				    showWindow->Pos += io->InputMessage.MouseDeltaOffset;
+			 }
+			 else
+			 {
+				 io->Has_Bring_front_opera = false;
+				 showWindow->Flag.Bring_Front = false;
+			 }
+		 }
+		
+			
+	 }
+	Clamp(showWindow->ScaleX, 0.7f, 3.0f);//限制缩放大小
+	Clamp(showWindow->ScaleY, 0.7f, 3.0f);
+
+	 //更新完窗口位置后再设置每一次窗口绘制内容的跟踪位置
+	 showWindow->cursorPos = showWindow->Pos;
+	 showWindow->cursorPos.x += showWindow->spacing * showWindow->ScaleX* 2.3;//横坐标再隔开点距离
+	 showWindow->cursorPos.y += showWindow->TitleRect.Height +showWindow->spacing*showWindow->ScaleY * 1.7; //隔开标题框的宽度 同时在隔开点距离  方便显示菜单栏时继承跟踪位置
+	 this->CurrentShowWindowStack.push_back(showWindow);
 }
 
+void UI::StartMenu(MenuShowOrderType ShowOrder)
+{
+	ShowWindowContainer*CurrentShowWindow = this->CurrentShowWindowStack.back();
+	CurrentShowWindow->MenuShowOrder = ShowOrder;//当前窗口在菜单栏摆放方式
+}
+
+void UI::Menu(const char* MenuName, bool enableMenuItem)
+{
+	ShowWindowContainer*CurrentShowWindow=this->CurrentShowWindowStack.back();//现在的窗口
+	ShowMenu* menu = CurrentShowWindow->FindMenuByName(MenuName);//寻找这个窗口的这个名称对应的菜单栏
+	if (menu == nullptr) //如果是第一次执行的就创建这个菜单
+	{
+		menu = CurrentShowWindow->CreateMenu(MenuName);//那就执行一次创建
+	}
+	CurrentShowWindow->MenuStack.push_back(menu); //供这个菜单栏的子条目显示访问当前菜单栏的位置和其他信息 EndMenu后弹出
+	menu->EnableMenuItem = enableMenuItem;//是否允许子条目在显示
+	//设置Menu的位置大小颜色参数  先暂时设成静止不变的 后期再通过现在的Menu宽度 和外部裁剪窗口的宽度进行相互制约
+	menu->MenuRect.Width = CalcuTextSize(MenuName,CurrentShowWindow->ScaleX, CurrentShowWindow->ScaleY).x+CurrentShowWindow->spacing* CurrentShowWindow->ScaleX*2;
+	menu->MenuRect.Height= CalcuTextSize(MenuName, CurrentShowWindow->ScaleX, CurrentShowWindow->ScaleY).y + CurrentShowWindow->spacing * CurrentShowWindow->ScaleY * 2;
+	menu->MenuRect.Min = CurrentShowWindow->cursorPos;
+	menu->MenuRect.Max = menu->MenuRect.Min + glm::vec2(menu->MenuRect.Width, menu->MenuRect.Height);
+	//绘制menuRect(Menu->Rect.Min，Menu->Rect.Max，Menu->Color
+	CurrentShowWindow->content.drawlist.AddRectFill(menu->MenuRect.Min, menu->MenuRect.Max,menu->MenuCol,9,1);
+	//设置菜单栏文本显示位置
+	glm::vec2 MenuTextPos = glm::vec2(menu->MenuRect.Min.x + CurrentShowWindow->spacing * CurrentShowWindow->ScaleX * 2, menu->MenuRect.Min.y + CurrentShowWindow->spacing * CurrentShowWindow->ScaleY * 2)
+		+glm::vec2(0, CalcuTextSize(MenuName, CurrentShowWindow->ScaleX, CurrentShowWindow->ScaleY).y);//需要再空出文本高度
+	//绘制menu的clip文本(MenuTextPos, menuRect, CurrentWindow->Color[Text], scaleX, scaleY);
+	CurrentShowWindow->content.drawlist.AddClipText(MenuTextPos, io->Colors[TextCol],MenuName, menu->MenuRect, CurrentShowWindow->ScaleX, CurrentShowWindow->ScaleY);
+	//耿欣现在窗口在内容跟踪位置
+	if(CurrentShowWindow->MenuShowOrder==HorizontalShow)//如果当前窗口的菜单栏摆放方式为水平摆放
+		CurrentShowWindow->cursorPos.x += menu->MenuRect.Width + CurrentShowWindow->spacing * CurrentShowWindow->ScaleX* 4.1; //跟踪位置往x轴方向自增距离 方便下一个菜单栏绘制 位置访问参数
+	else if(CurrentShowWindow->MenuShowOrder == VerticalShow)
+		CurrentShowWindow->cursorPos.y += menu->MenuRect.Height + CurrentShowWindow->spacing * CurrentShowWindow->ScaleY * 5.1; //跟踪位置往y轴方向自增距离
+	//如果当前窗口允许响应输入事件
+	if (CurrentShowWindow->Flag.AllowResponseInputEvent)
+	{
+		//是否菜单框吃了鼠标位置
+		if (menu->MenuRect.Contain(io->InputMessage.MousePos))//要明白这个菜单栏->Hoverable决定它的悬浮内容是否显示 而这个菜单栏->Hoverable由悬浮窗矩形外的鼠标点击事件和其他菜单栏是否Hoverable来清除 也就只有一个菜单栏Hoverable激活
+		{
+			//改变这个菜单栏的颜色
+			menu->MenuCol = glm::vec4(0.2,0.1,0.2,1);
+			menu->Hoverable = true;
+		}
+		else//说明菜单栏没有吃掉鼠标位置
+		{
+			//恢复这个菜单栏原来的颜色
+			menu->MenuCol = io->Colors[MenuRectCol];
+			//现在判断悬浮窗矩形外的鼠标点击事件或其他菜单栏是否Hoverable来清除当前菜单栏->Hoverable
+			 
+			if (!menu->HoverRect.Contain(io->InputMessage.MousePos) && io->InputMessage.MouseDown[GLFW_MOUSE_BUTTON_LEFT]
+				|| IsOtherMenuHoverable(CurrentShowWindow, menu))//主要排除当前Menu查看其他Menu
+							menu->Hoverable = false; //清除当前菜单栏悬浮窗显示标志
+
+		}
+	}
+}
+
+void UI::MenuItem(const char* ItemName, bool* ShowotherContextFlag)//纯只是往菜单栏的子条目数组添加
+{
+	//现在的窗口
+	ShowWindowContainer*CurrentShowWindow = this->CurrentShowWindowStack.back();
+	//现在的窗口的现在的菜单 访问完后需要弹出这个菜单
+	ShowMenu* CurrentMenu = CurrentShowWindow->MenuStack.back();
+	ShowMenuItem Item;
+	Item.name = ItemName;
+	Item.ShowOtherContext = ShowotherContextFlag;
+	Item.ItemRect=ClipRect(glm::vec2(0,0),glm::vec2(0,0));
+	CurrentMenu->MenuItemStack.push_back(Item);//每次放进去后最终结束需要弹出来
+
+}
+
+void UI::EndMenu()
+{
+	//现在的窗口
+	ShowWindowContainer* CurrentShowWindow = this->CurrentShowWindowStack.back();
+	//现在的窗口的现在的菜单 访问完后需要弹出这个菜单
+	ShowMenu* CurrentMenu = CurrentShowWindow->MenuStack.back();
+	if (CurrentMenu->EnableMenuItem)//是否当前菜单允许子条目开启显示
+	{
+
+		if (CurrentMenu->Hoverable)//如果当前菜单允许悬浮窗显示
+		{
+			float HoverRectWidth = 0; //悬浮窗的总宽度 通常取子条目文本宽度的最大值再加上一些间隔
+			float HoverRectHeight = 0; //悬浮窗的总宽度 累加每一给文本的有效高度再加上一些间隔
+			for (ShowMenuItem Item : CurrentMenu->MenuItemStack)//遍历所有子条目的宽高计算出总的悬浮窗的有效高宽
+			{
+				glm::vec2 TextSize = CalcuTextSize(Item.name, CurrentShowWindow->ScaleX, CurrentShowWindow->ScaleY);
+				HoverRectWidth = std::max(HoverRectWidth, TextSize.x + CurrentShowWindow->spacing * CurrentShowWindow->ScaleX * 7.8f);
+				HoverRectHeight += TextSize.y + CurrentShowWindow->spacing * CurrentShowWindow->ScaleY * 7.8;
+				
+			}
+			//设置菜单栏的悬浮窗的位置距离参数
+			CurrentMenu->HoverRect.Width = HoverRectWidth+ CurrentMenu->ScrollBarWH.x;//在原先的基础上加上滚动条的宽度
+			CurrentMenu->HoverRect.Height = HoverRectHeight;
+			CurrentMenu->HoverRect.Min = glm::vec2(CurrentMenu->MenuRect.Max.x - CurrentShowWindow->spacing * CurrentShowWindow->ScaleX * 2, CurrentMenu->MenuRect.Max.y);
+			CurrentMenu->HoverRect.Max = CurrentMenu->HoverRect.Min + glm::vec2(CurrentMenu->HoverRect.Width, CurrentMenu->HoverRect.Height);
+			//绘制菜单栏的悬浮窗
+			CurrentShowWindow->content.drawlist.AddRectFill(CurrentMenu->HoverRect.Min, CurrentMenu->HoverRect.Max, io->Colors[HoverRectCol], 9, 1);
+			//设置滚动条的参数
+			CurrentMenu->ItemScrollbar.Width = CurrentMenu->ScrollBarWH.x* CurrentShowWindow->ScaleX;
+			CurrentMenu->ItemScrollbar.Height=CurrentMenu->ScrollBarWH.y * CurrentShowWindow->ScaleY;
+			CurrentMenu->ItemScrollbar.Min = glm::vec2(CurrentMenu->HoverRect.Max.x- CurrentMenu->ScrollBarWH.x, CurrentMenu->HoverRect.Min.y+CurrentShowWindow->spacing)
+				+glm::vec2(0, -CurrentMenu->MenuItemOffset.y);
+			CurrentMenu->ItemScrollbar.Max = CurrentMenu->ItemScrollbar.Min + CurrentMenu->ScrollBarWH;
+			//再绘制滚动条
+			CurrentShowWindow->content.drawlist.AddRectFill(CurrentMenu->ItemScrollbar.Min, CurrentMenu->ItemScrollbar.Max, CurrentMenu->ScrollbarCol,5,1);
+			
+
+			//设置悬浮窗的文本框位置
+			glm::vec2 HoverTextRectPos = CurrentMenu->HoverRect.Min +
+				glm::vec2(CurrentShowWindow->spacing * CurrentShowWindow->ScaleX * 1.2, CurrentShowWindow->spacing * CurrentShowWindow->ScaleX * 1.2 + CurrentMenu->MenuItemOffset.y); //隔开点距离 然后加上由滚动条控制的偏移delta位移
+			//响应滚轮移动事件 使位移变化(保证鼠标在悬浮窗口内部成立) 同时绘制滚动条 但是要限制MenuOffset的值
+			Clamp(CurrentMenu->MenuItemOffset.y, CurrentMenu->ItemScrollbar.Height-CurrentMenu->HoverRect.Height  ,0 );
+			if(CurrentMenu->HoverRect.Contain(io->InputMessage.MousePos))//响应鼠标滚轮滚动偏移
+			  CurrentMenu->MenuItemOffset.y += io->InputMessage.Scroll;
+			//再判断鼠标是否悬停在滚动条 并且鼠标点击了 通过滚动条调整菜单栏的子条目 偏移
+			if (CurrentMenu->ItemScrollbar.Contain(io->InputMessage.MousePos))
+			{
+				CurrentMenu->ScrollbarCol = glm::vec4(1,0.4,0,1);
+				if (io->InputMessage.MouseDown[GLFW_MOUSE_BUTTON_LEFT])
+				{
+					CurrentMenu->MenuItemOffset.y -= io->InputMessage.MouseDeltaOffset.y;
+					//同时清除当前窗口可移动的标志允许判断
+					CurrentShowWindow->Flag.Movable = false;
+				}
+				
+			}
+			else {
+				CurrentShowWindow->Flag.Movable = true;
+				CurrentMenu->ScrollbarCol = io->Colors[ScrollBarCol];
+			}
+				
+			for (ShowMenuItem& Item : CurrentMenu->MenuItemStack)//遍历本个菜单栏的所有子条目
+			{
+				//设置单个子条目的文本框位置 宽高参数
+				Item.ItemRect.Width= CalcuTextSize(Item.name, CurrentShowWindow->ScaleX, CurrentShowWindow->ScaleY).x + CurrentShowWindow->spacing * CurrentShowWindow->ScaleX * 4.7;
+				Item.ItemRect.Height = CalcuTextSize(Item.name, CurrentShowWindow->ScaleX, CurrentShowWindow->ScaleY).y + CurrentShowWindow->spacing * CurrentShowWindow->ScaleY * 4.7;
+				Item.ItemRect.Min = HoverTextRectPos;
+				Item.ItemRect.Max = HoverTextRectPos + glm::vec2(Item.ItemRect.Width, Item.ItemRect.Height);
+
+				//所以要在这判断子条目的文本框是否越出悬浮窗的边界 裁剪掉 改变单个子条目文本框参数
+				if (Item.ItemRect.Min.y> CurrentMenu->HoverRect.Min.y&& Item.ItemRect.Max.y< CurrentMenu->HoverRect.Max.y)//如果当前悬浮窗单个文本框吃了鼠标位置 且要保证这个单个子条目框在整个悬浮窗内部
+				{
+					glm::vec4 HoverTextRextCol = io->Colors[HoverTextRectCol];//悬浮窗单个文本框颜色
+					if (Item.ItemRect.Contain(io->InputMessage.MousePos))//当鼠标位置在单个文本框悬浮
+					{
+						HoverTextRextCol = glm::vec4(0.5,0.6,0,1);//文本框 鼠标悬浮之上的高亮颜色
+						if (io->InputMessage.MouseDown[GLFW_MOUSE_BUTTON_LEFT]) {//在悬浮基础之上鼠标点击一下
+							if (Item.ShowOtherContext != nullptr)
+								*Item.ShowOtherContext = true;//激活显示其他内容的flag
+						}	
+					}
+					// 绘制菜单栏子条目文本框
+					CurrentShowWindow->content.drawlist.AddRectFill(Item.ItemRect.Min, Item.ItemRect.Max, HoverTextRextCol, 9, 1);
+					//设置悬浮窗单个文本位置   文本框隔出点距离再空出文本高度即为文本开始显示的位置
+					glm::vec2 HoverTextPos = HoverTextRectPos + glm::vec2(0, CalcuTextSize(Item.name, CurrentShowWindow->ScaleX, CurrentShowWindow->ScaleY).y)
+						+ glm::vec2(CurrentShowWindow->spacing * 1.3, CurrentShowWindow->spacing * 1.3);
+					//绘制菜单栏子条目文本
+					CurrentShowWindow->content.drawlist.AddClipText(HoverTextPos, io->Colors[TextCol], Item.name, CurrentMenu->HoverRect, CurrentShowWindow->ScaleX, CurrentShowWindow->ScaleY);
+				}
+				
+				HoverTextRectPos.y += CurrentShowWindow->spacing * 2 + Item.ItemRect.Height;//纵坐标往下平移
+			}
+
+
+		}
+		else//如果不让显示悬浮窗就置零滚菜单栏子条目动偏移
+			CurrentMenu->MenuItemOffset = glm::vec2(0,0);
+		  
+	}
+	//处理完所有逻辑和绘制命令后 清理循环更新的内存
+	CurrentMenu->MenuItemStack.clear();
+	CurrentShowWindow->MenuStack.pop_back();
+}
 void UI::EndShowWindow()
 {
 	ShowWindowContainer* CurrentShowWindow = this->CurrentShowWindowStack.back();
@@ -948,125 +1191,25 @@ ShowWindowContainer* UI::FindShowWindowByName(const char* name)
 		return this->NameToShowWindowMap[name];
 	return nullptr;
 }
-//后期加的UI代码架构
-//SetUpCurrentIO() io设置
-//
-//SetupBackUpdata(); 创建绘制数据顶点数组 创建字体字符图集 并加载着色器
-//
-//
-//while (1)渲染循环
-//{
-//	  UpdateEvent(pwindow); 更新鼠标XY位移（mouseDeltaXoffset mouseDeltaYoffset） 鼠标屏幕位置(mousePos)  更新滚轮条的滚动位移scroll 键盘判断处理事件 窗口的视口大小位置 绘制正交投影视口
-//
-//	  ui::StartShowWindow("...标题"，popen)主窗口 popen代表窗口是否打开
-//	  if (ui::Menu("..菜单栏名字"，Horizontal  Vertical子条目是竖直摆放 还是水平摆放))   如果鼠标悬浮在此就显示单个菜单栏的子条目
-//	  {
-//			ui::MenuItem("..子条目1"，是否启动其他函数显示文字元素的标志（假如这个是ShowScdW）); 借用在fontopengl.cpp io里的Drawdata
-//			ui::MenuItem("..子条目2"，是否启动其他函数显示文字元素的标志);
-//			ui::MenuItem("..子条目3"，是否启动其他函数显示文字元素的标志);
-//			ui::MenuItem("..子条目4"，是否启动其他函数显示文字元素的标志);
-//			ui::MenuItem("..子条目5"，是否启动其他函数显示文字元素的标志);
-//	  }此时drawlist已经装上了文本顶点缓冲
-//	  ui::EndMenu();
-//	 ui::EndThisShowWindow();
-//
-//	 ui::StartShowWindow（......,ShowScdW）
-//
-//	 .......
-//	 ui::EndThisShowWindow()
-//
-//	  RenderDrawData(); 将DrawData的drawlist framebufferscale displayPos displaySize发送给OpenGL调用gl命令绘制
-//}
-//
-//
-//
-//
-//之前的StartshowWindow逻辑
-////设置窗口的外部裁剪矩形 同时也能保证更新外部裁剪矩形参数
-//showWindow->OutterRect.Min = showWindow->Pos;
-//showWindow->OutterRect.Max = showWindow->Pos + glm::vec2(460, 490);
-//showWindow->content.drawlist.AddRectFill(showWindow->OutterRect.Min, showWindow->OutterRect.Max, showWindow->TitleColor, 9.0f, 1);
-//showWindow->content.drawlist.AddRectBorder(showWindow->OutterRect.Min, showWindow->OutterRect.Max, glm::vec4(1, 1, 0, 1), 2.0f);
-////showWindow->drawlist.AddRectTriangleBorder(showWindow->OutterRect.Min, showWindow->OutterRect.Max, glm::vec4(1, 1, 0, 1), 1.3f);
-//showWindow->content.drawlist.AddClipText(showWindow->Pos + glm::vec2(0, 53), glm::vec4(0, 1, 1, 1), Text, showWindow->OutterRect, showWindow->ScaleX, showWindow->ScaleY);//绘制标题
-//
-//if (showWindow->OutterRect.Contain(io->InputMessage.MousePos) && showWindow->Flag.AllowResponseInputEvent)//是否当前窗口的Rect吃了鼠标位置 并且允许响应事件 
-//{
-//	showWindow->TitleColor = glm::vec4(0, 0.2, 0.2, 1);
-//	if (io->InputMessage.KeyMesage.key == GLFW_KEY_LEFT_CONTROL && io->InputMessage.KeyMesage.press)
-//	{
-//		showWindow->ScaleX += io->InputMessage.Scroll * 0.05f; // 滚动的增量控制大小的变化比例
-//		showWindow->ScaleY += io->InputMessage.Scroll * 0.05f;
-//	}
-//	if (io->InputMessage.KeyMesage.key == GLFW_KEY_T && io->InputMessage.KeyMesage.press)//如果T按键按下绘制字体文本的顶点
-//	{
-//		glm::vec2 textSize = CalcuTextSize(Text, showWindow->ScaleX, showWindow->ScaleY);
-//		showWindow->content.drawlist.AddTextSizeRectBorder(showWindow->Pos + glm::vec2(0, 53), textSize, glm::vec4(1, 0, 1, 1), 1.3);
-//		/*showWindow->content.drawlist.AddText_VertTriangleBorder(showWindow->Pos + glm::vec2(0, 53), glm::vec4(1, 0, 1, 1), Text, showWindow->ScaleX, showWindow->ScaleY,1.1);*/
-//	}
-//
-//	if (io->InputMessage.MouseDown[GLFW_MOUSE_BUTTON_LEFT])//如果对当前窗口有点击执行置顶 获取鼠标位移进行窗口位置移动
-//	{
-//		io->Has_Bring_front_opera = true;
-//		showWindow->Flag.Bring_Front = true;
-//		showWindow->Pos += io->InputMessage.MouseDeltaOffset;
-//	}
-//	else
-//	{
-//		io->Has_Bring_front_opera = false;
-//		showWindow->Flag.Bring_Front = false;
-//	}
-//
-//}
-//else
-//{
-//	showWindow->TitleColor = glm::vec4(0, 0.2, 0, 1);
-//}
-//Clamp(showWindow->ScaleX, 0.1f, 3.0f);
-//Clamp(showWindow->ScaleY, 0.1f, 3.0f);
-//this->CurrentShowWindowStack.push_back(showWindow);//这个是要在绘制当前窗口的子条目文本时需要用到当前窗口的主要位置需要后期给弹出去
 
-	//之前的StartshowWindow逻辑
-////设置窗口的外部裁剪矩形 同时也能保证更新外部裁剪矩形参数
-//showWindow->OutterRect.Min = showWindow->Pos;
-//showWindow->OutterRect.Max = showWindow->Pos + glm::vec2(460, 490);
-//showWindow->content.drawlist.AddRectFill(showWindow->OutterRect.Min, showWindow->OutterRect.Max, showWindow->TitleColor, 9.0f, 1);
-//showWindow->content.drawlist.AddRectBorder(showWindow->OutterRect.Min, showWindow->OutterRect.Max, glm::vec4(1, 1, 0, 1), 2.0f);
-////showWindow->drawlist.AddRectTriangleBorder(showWindow->OutterRect.Min, showWindow->OutterRect.Max, glm::vec4(1, 1, 0, 1), 1.3f);
-//showWindow->content.drawlist.AddClipText(showWindow->Pos + glm::vec2(0, 53), glm::vec4(0, 1, 1, 1), Text, showWindow->OutterRect, showWindow->ScaleX, showWindow->ScaleY);//绘制标题
-//
-//if (showWindow->OutterRect.Contain(io->InputMessage.MousePos) && showWindow->Flag.AllowResponseInputEvent)//是否当前窗口的Rect吃了鼠标位置 并且允许响应事件 
-//{
-//	showWindow->TitleColor = glm::vec4(0, 0.2, 0.2, 1);
-//	if (io->InputMessage.KeyMesage.key == GLFW_KEY_LEFT_CONTROL && io->InputMessage.KeyMesage.press)
-//	{
-//		showWindow->ScaleX += io->InputMessage.Scroll * 0.05f; // 滚动的增量控制大小的变化比例
-//		showWindow->ScaleY += io->InputMessage.Scroll * 0.05f;
-//	}
-//	if (io->InputMessage.KeyMesage.key == GLFW_KEY_T && io->InputMessage.KeyMesage.press)//如果T按键按下绘制字体文本的顶点
-//	{
-//		glm::vec2 textSize = CalcuTextSize(Text, showWindow->ScaleX, showWindow->ScaleY);
-//		showWindow->content.drawlist.AddTextSizeRectBorder(showWindow->Pos + glm::vec2(0, 53), textSize, glm::vec4(1, 0, 1, 1), 1.3);
-//		/*showWindow->content.drawlist.AddText_VertTriangleBorder(showWindow->Pos + glm::vec2(0, 53), glm::vec4(1, 0, 1, 1), Text, showWindow->ScaleX, showWindow->ScaleY,1.1);*/
-//	}
-//
-//	if (io->InputMessage.MouseDown[GLFW_MOUSE_BUTTON_LEFT])//如果对当前窗口有点击执行置顶 获取鼠标位移进行窗口位置移动
-//	{
-//		io->Has_Bring_front_opera = true;
-//		showWindow->Flag.Bring_Front = true;
-//		showWindow->Pos += io->InputMessage.MouseDeltaOffset;
-//	}
-//	else
-//	{
-//		io->Has_Bring_front_opera = false;
-//		showWindow->Flag.Bring_Front = false;
-//	}
-//
-//}
-//else
-//{
-//	showWindow->TitleColor = glm::vec4(0, 0.2, 0, 1);
-//}
-//Clamp(showWindow->ScaleX, 0.1f, 3.0f);
-//Clamp(showWindow->ScaleY, 0.1f, 3.0f);
-//this->CurrentShowWindowStack.push_back(showWindow);//这个是要在绘制当前窗口的子条目文本时需要用到当前窗口的主要位置 需要后期给弹出去
+void UI::BgText(const char* Text)
+{
+	ShowWindowContainer* CurrentShowWindow = this->CurrentShowWindowStack.back();
+	CurrentShowWindow->content.drawlist.AddClipText(CurrentShowWindow->cursorPos+glm::vec2(3*CurrentShowWindow->spacing, 
+		3*CurrentShowWindow->spacing), io->Colors[TextCol], Text, CurrentShowWindow->OutterRect, CurrentShowWindow->ScaleX, CurrentShowWindow->ScaleX);
+}
+ShowMenu* ShowWindowContainer::CreateMenu(const char* name)
+{
+	
+	ShowMenu* newShowMenu = new ShowMenu();
+	this->MenuMap.insert(name,newShowMenu);//只执行一次
+	this->MenuArray.push_back(newShowMenu);//只执行一次放入内容
+	return newShowMenu;
+}
+
+ShowMenu* ShowWindowContainer::FindMenuByName(const char* name)
+{
+	if(this->MenuMap.find(name))
+		return this->MenuMap[name];
+	return nullptr;
+}

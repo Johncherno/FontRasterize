@@ -5,6 +5,8 @@ VisualStudioVersion = 17.11.35222.181
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FontRasterize", "FontRasterize\FontRasterize.vcxproj", "{DFE57463-3A97-4B14-9C20-8C07B74C5EFE}"
 EndProject
+Project("{54435603-DBB4-11D2-8724-00A0C9A8B90C}") = "Setup1", "Setup1\Setup1.vdproj", "{B5EC34AF-A5E8-4ED4-AADD-004C2E469DBD}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -21,6 +23,10 @@ Global
 		{DFE57463-3A97-4B14-9C20-8C07B74C5EFE}.Release|x64.Build.0 = Release|x64
 		{DFE57463-3A97-4B14-9C20-8C07B74C5EFE}.Release|x86.ActiveCfg = Release|Win32
 		{DFE57463-3A97-4B14-9C20-8C07B74C5EFE}.Release|x86.Build.0 = Release|Win32
+		{B5EC34AF-A5E8-4ED4-AADD-004C2E469DBD}.Debug|x64.ActiveCfg = Debug
+		{B5EC34AF-A5E8-4ED4-AADD-004C2E469DBD}.Debug|x86.ActiveCfg = Debug
+		{B5EC34AF-A5E8-4ED4-AADD-004C2E469DBD}.Release|x64.ActiveCfg = Release
+		{B5EC34AF-A5E8-4ED4-AADD-004C2E469DBD}.Release|x86.ActiveCfg = Release
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

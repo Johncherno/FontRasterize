@@ -58,11 +58,20 @@ struct DrawList
 
 
 };
+enum MenuShowOrderType//菜单摆放方式
+{
+	HorizontalShow,//水平摆放展示
+	VerticalShow//垂直摆放展示
+};
 enum ColStyle
 {
 	TitleRectCol,//标题栏
 	OutterRectCol,//外部裁剪窗口
 	TextCol,//文本绘制颜色
+	MenuRectCol,//菜单栏颜色
+	HoverRectCol,//悬浮窗颜色
+	HoverTextRectCol,//悬浮窗单个文本框颜色
+	ScrollBarCol//滚动条颜色
 };
 struct KeyEvent { int key; bool press; };//按键消息结构体
 struct InputEventParam//输入消息参数   鼠标XY位移  鼠标按键信息  鼠标屏幕位置  滚轮条的滚动位移 KeyEvent{int key bool press} 按键消息
@@ -79,6 +88,38 @@ struct gl_Content//这个UI设计gl的绘制资源数据集合
 	GLuint Vao, Vbo, Ebo;//glbuffer
 	unsigned int VertexBufferSize, IdxBufferSize;//顶点缓冲的Vtx Idx属性
 };
+struct ShowMenuItem
+{
+	const char* name=nullptr;//子条目的名称
+	ClipRect ItemRect;//子条目对应的文本框
+	bool* ShowOtherContext=nullptr;//是否允许开启其他内容显示判断标志
+};
+struct ShowMenu//Menu{ 菜单栏裁剪矩形，悬浮窗裁剪矩形(HoverRect)、DynamicArray<MenuItem>MenuItemStack存储当前子条目、颜色、开启子条目显示标志 }
+{
+	ShowMenu()//构造函数
+	{
+		this->MenuRect = ClipRect(glm::vec2(0,0), glm::vec2(0, 0));
+		this->HoverRect = ClipRect(glm::vec2(0, 0), glm::vec2(0, 0));
+		this->ItemScrollbar = ClipRect(glm::vec2(0, 0), glm::vec2(0, 0));
+		this->MenuItemOffset = glm::vec2(0,0);
+		this->ScrollBarWH = glm::vec2(9, 32);
+		this->ScrollbarCol = glm::vec4(0.4, 0.4, 0.4, 1);
+		this->MenuCol = glm::vec4(0.5,0,0.4,1);
+		this->MenuItemStack.resize(0);
+		this->EnableMenuItem = false;
+		this->Hoverable = false;
+	}
+	ClipRect MenuRect;//菜单栏裁剪矩形
+	ClipRect HoverRect;//悬浮窗裁剪矩形
+	ClipRect ItemScrollbar;//菜单栏的子条目的滚动条
+	glm::vec2 MenuItemOffset;//子条目的滚动偏移位置
+	DynamicArray<ShowMenuItem>MenuItemStack;//存储当前子条目
+	glm::vec4 MenuCol;//菜单栏颜色
+	glm::vec4 ScrollbarCol;//滚动条的颜色
+	glm::vec2 ScrollBarWH;//当前菜单栏的滚动条的宽高
+	bool EnableMenuItem;//开启子条目显示标志 
+	bool Hoverable;//是否允许悬浮窗显示 悬浮标志
+};//菜单栏
 struct ShowWindowContainer
 {
 	
@@ -87,6 +128,7 @@ struct ShowWindowContainer
 		this->Pos= glm::vec2(0, 0);//显示窗口绘制位置
 		this->content.drawlist = DrawList();
 		this->cursorPos = glm::vec2(0,0);
+		
 		this->TitleRect = ClipRect(this->Pos, this->Pos + glm::vec2(460, 70));
 		this->OutterRect = ClipRect(this->Pos, this->Pos + glm::vec2(560, 590));//初始化自己窗口的外部裁剪矩形
 
@@ -101,26 +143,37 @@ struct ShowWindowContainer
 		this->spacing = 2.0f;
 		//设置自己窗口的各种判断事件的判断标志
 		this->Flag.AllowResponseInputEvent = false;
+		this->Flag.Movable = true;
 		this->Flag.Bring_Front = false;
 		this->Flag.IsWindowVisible = false;
+		//默认菜单栏显示方式为水平方式
+		this->MenuShowOrder = HorizontalShow;
+		this->MenuArray.resize(0);
 	}
+	ShowMenu* CreateMenu(const char* name);
+	ShowMenu* FindMenuByName(const char*name);//从菜单映射表找出菜单指针
 	struct ShowWindowflag
 	{
 		bool AllowResponseInputEvent = false;//是否允许当前窗口响应事件 防止叠加的窗口都在响应输入事件 我们只允许叠加的窗口中置顶窗口响应事件
+		bool Movable = true;//是否窗口可以允许移动
 		bool Bring_Front = false;//是否自身窗口置顶显示
 		bool IsWindowVisible = true;//是否允许窗口显示即是否将本身窗口绘制资源顶点发送给GPU
 	};
+	RBTreeMap<const char*, ShowMenu*>MenuMap;//当前窗口在菜单映射表
+	DynamicArray<ShowMenu*>MenuArray;//当前窗口的存储各个菜单栏数组
+	DynamicArray<ShowMenu*>MenuStack;//当前窗口在菜单栏在栈 只能存储一次再弹出
 	glm::vec2 Pos ;//显示窗口绘制位置
 	glm::vec2 cursorPos;//每一个绘制内容的跟踪位置
-
+	
 	ClipRect TitleRect;//标题框裁剪矩形
 	ClipRect OutterRect;//自家窗口的外部裁剪矩形
 	glm::vec4 COLOR[6];//不同在内容对应的颜色
 
 	gl_Content content; // 自家窗口的绘制资源 自家窗口的绘制列表 每个窗口都有自己的glbuffer 自己窗口的顶点缓冲的Vtx Idx属性
-	float spacing = 2.0f;//显示内容相互之间的距离
-	float ScaleX, ScaleY;//自己窗口的绘制内容的缩放比例
 	ShowWindowflag Flag;//自己窗口的一些事件判定标志
+	MenuShowOrderType MenuShowOrder;//菜单栏的显示方式 水平还是垂直方式
+	float spacing;//显示内容相互之间的距离
+	float ScaleX, ScaleY;//自己窗口的绘制内容的缩放比例
 };
 struct DrawData
 {
@@ -133,7 +186,12 @@ struct DrawData
 class UI
 {
 public:
-	void StartShowWindow(const char* Text, bool Popen);
+	void StartShowWindow(const char* Text, bool Popen);//Popen控制窗口是否允许显示
+	void BgText(const char* Text);//绘制背景的文本
+	void StartMenu(MenuShowOrderType ShowOrder);//Horizontal  Vertical菜单栏是竖直摆放 还是水平摆放 枚举类型
+	void Menu(const char*MenuName,bool enableMenuItem);//显示菜单栏
+	void MenuItem(const char*ItemName,bool*ShowotherContextFlag);//为菜单栏添加子条目
+	void EndMenu();//计算好所有子条目的参数 总的判断事件标志 绘制子条目的文本框和文本 最后再弹出更新的内存
 	void EndShowWindow();//从当前窗口弹开方便下一个窗口的子条目绘制因为要访问目前窗口的位置
 private:
 	ShowWindowContainer* CreateNewShowWindow(const char* name);//只允许调用一次
@@ -155,6 +213,7 @@ public:
 	FontAtlas atlas;
 	InputEventParam InputMessage;//输入响应消息
 	glm::vec2 ArcFastLookUpTable[48];//存储cos sin值
+	glm::vec4 Colors[8];//一些绘制内容在默认颜色
 	bool Has_Bring_front_opera=false;//是否有置顶窗口的操作
 protected:
 	shaderProgram* shader = nullptr;

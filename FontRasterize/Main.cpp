@@ -28,8 +28,8 @@ int main()
       IO->atlas.AddFont_FromFile("C:\\Windows\\Fonts\\simsun.ttc", 18, IO->atlas.Get_ChineseGlyph_CodePointRange());//加载中文字体
       BuildBackendData();//创建绘制数据顶点数组 创建字体字符图集 并加载着色器
 
-   
-       bool WindowShow = true;
+      
+       bool WindowShow = false;
        UI* ui = new UI;//实例化UI界面类
       while (!glfwWindowShouldClose(pwindow))//游戏循环
       {
@@ -38,25 +38,29 @@ int main()
           glClear(GL_COLOR_BUFFER_BIT);//清空颜色 深度缓冲
           glClearColor(0.0, 0.0, 0.0, 0.0);
           UpdateEvent(pwindow);//响应输入事件
-          if (IO->InputMessage.KeyMesage.key==GLFW_KEY_A&& IO->InputMessage.KeyMesage.press)
-          {
-              WindowShow = false;
-         }
-          else
-          {
-              WindowShow = true;
-          }
            ui->StartShowWindow(u8"First窗口内容X", true);
+           ui->StartMenu( HorizontalShow);
+
+           ui->Menu(u8"First菜单栏", true);
+           ui->MenuItem(u8"First菜单栏子条目1", nullptr);
+           ui->MenuItem(u8"First菜单栏子条目2", &WindowShow);
+           ui->MenuItem(u8"First菜单栏子条目3", nullptr);
+           ui->EndMenu();
+
            ui->EndShowWindow();//弹出当前窗口需要下一次调用时用另一个窗口的位置
+          
 
-          ui->StartShowWindow(u8"Second窗口内容", true);
+
+          ui->StartShowWindow(u8"Second窗口内容", WindowShow);
+          ui->BgText(u8"可以在托管代码或本机代码中为 DLL 编写调用应用。 \n"
+              "如果本机应用调用托管 DLL，并且你想要调试两者，\n"
+              "则可以在项目属性中同时启用托管和本机调试器。\n" 
+             " 确切流程取决于是要从 DLL 项目还是从调用应用项目开始调试。 有关详细信息，请参阅如何：在混合模式下调试。\n");
+
+         
           ui->EndShowWindow();
 
-          ui->StartShowWindow(u8"Third窗口内容",  WindowShow);
-          ui->EndShowWindow();
-
-          ui->StartShowWindow(u8"Fourth窗口内容",  true);
-          ui->EndShowWindow();
+         
           RenderDrawData(ui);//绘制UI添加的绘制数据
    
         

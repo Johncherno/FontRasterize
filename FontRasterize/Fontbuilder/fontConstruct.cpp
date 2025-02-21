@@ -374,7 +374,7 @@ static void Tessalate_curve(GlyphShape_Point* Pt, unsigned int* numPoints, float
 	float dy = (firstY + thirdY) / 2 - middleY;
 	if (recurse_depth > 16)//限制递归深度
 		return;
-	if (dx * dx + dy * dy >= objactness * objactness)//计算p0和p2中点和Middle之间的距离作为推出递归的结束标志返回推出堆栈
+	if (dx * dx + dy * dy >= objactness * objactness)//计算p0和p2中点和Middle之间的距离作为推出递归的结束标志返回推出堆栈 意思是只要不满足相应距离条件就一直遍历二叉树节点
 	{
 		//左半部 左子节点
 		Tessalate_curve(Pt, numPoints, objactness, firstX, firstY, (firstX + secondX) / 2, (firstY + secondY) / 2, middleX, middleY, recurse_depth + 1);
@@ -866,7 +866,6 @@ static void RenderSingleCharacterIntoRect(ttfBuildFontInfo* fontInfo, int glyphI
 	PackedRectTexContext.CharRectWidth = CharRectWidth;
 	PackedRectTexContext.stride_in_bytes = stride;
 	TruetypeGetGlyphBitmapBox(fontInfo, glyphIndex, scale, &offx, &offy, 0, 0);
-	//std::cout << scale << std::endl;
 	Fill_CloseGlyphShape(points, &PackedRectTexContext, winding_EdgeCounts, windinglength, scale, offx, offy);
 	//之前malloc的释放掉
 	free(points);
@@ -936,7 +935,6 @@ static bool ttfFontBuild(FontAtlas* fontTexatlas)
 		printf("First step: initializing ttf data successfully\n");
 		//写入字符ascll索引的范围
 		src_Font_tmpInfo.SrcCodePointRange = fontCfg.SrcRangeForCharCodePoint;
-		std::cout << "执行赋值操作之前的src_Font_tmpInfo.GlyphLastCodePoint " << src_Font_tmpInfo.GlyphLastCodePoint << std::endl;
 		//写入字符最后一个索引
 		for (Char16* SrcCodePointRange_Reading_Pointer = src_Font_tmpInfo.SrcCodePointRange; SrcCodePointRange_Reading_Pointer[0] && SrcCodePointRange_Reading_Pointer[1]; SrcCodePointRange_Reading_Pointer += 2)
 		{
