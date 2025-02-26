@@ -132,14 +132,14 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Fontbuilder\fontConstruct.cpp" />
-    <ClCompile Include="Fontbuilder\font_opengl.cpp" />
+    <ClCompile Include="Fontbuilder\ui_opengl.cpp" />
     <ClCompile Include="Fontbuilder\shaderProgram.cpp" />
     <ClCompile Include="Main.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Fontbuilder\fontPack.h" />
     <ClInclude Include="Fontbuilder\FontStructure.h" />
-    <ClInclude Include="Fontbuilder\font_opengl.h" />
+    <ClInclude Include="Fontbuilder\ui_opengl.h" />
     <ClInclude Include="Fontbuilder\internal.h" />
     <ClInclude Include="Fontbuilder\shaderProgram.h" />
     <ClInclude Include="Fontbuilder\TruetypeFont.h" />

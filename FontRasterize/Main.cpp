@@ -1,4 +1,4 @@
-#include"Fontbuilder\font_opengl.h"
+#include"Fontbuilder\ui_opengl.h"
 static void checkGLError(const char* stmt, const char* fname, int line) {
     GLenum err = glGetError();
     while (err != GL_NO_ERROR) {
@@ -39,8 +39,8 @@ int main()
           glClearColor(0.0, 0.0, 0.0, 0.0);
           UpdateEvent(pwindow);//响应输入事件
            ui->StartShowWindow(u8"First窗口内容X", true);
+          
            ui->StartMenu( HorizontalShow);
-
            ui->Menu(u8"First菜单栏", true);
            ui->MenuItem(u8"First菜单栏子条目1", nullptr);
            ui->MenuItem(u8"First菜单栏子条目2", &WindowShow);

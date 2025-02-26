@@ -39,7 +39,8 @@ struct DrawList
 	void _PathArc(glm::vec2 center, float radius, unsigned int MinSample, unsigned int MaxSample, float scale);
 	void PolyConvexFill(glm::vec4 color);
 	void AddLine(glm::vec2 p1, glm::vec2 p2, glm::vec4 color, float thickness);//绘制线条
-	void AddTriangle(glm::vec2 p1, glm::vec2 p2, glm::vec2 p3, glm::vec4 color, float thickness);//绘制三角形边框
+	void AddArrow(glm::vec2 p1,float Width,float Height,float scale,glm::vec4 Col,float thickness,bool CollapsedFlag);
+	void AddTriangleBorderLine(glm::vec2 p1, glm::vec2 p2, glm::vec2 p3, glm::vec4 color, float thickness);//绘制三角形边框
 	void AddRectTriangleBorder(glm::vec2 Min, glm::vec2 Max, glm::vec4 color, float thickness);//绘制矩形三角形边框 或者绘制字体方块四角三角形顶点边框
 	void AddRectBorder(glm::vec2 Min, glm::vec2 Max, glm::vec4 color, float thickness);//绘制边框
 	void AddRectFill(glm::vec2 Min, glm::vec2 Max, glm::vec4 color, float rounding, float scale);//绘制圆角文本框进行颜色填充
@@ -77,7 +78,15 @@ struct KeyEvent { int key; bool press; };//按键消息结构体
 struct InputEventParam//输入消息参数   鼠标XY位移  鼠标按键信息  鼠标屏幕位置  滚轮条的滚动位移 KeyEvent{int key bool press} 按键消息
 {
 	glm::vec2 MouseDeltaOffset;//鼠标XY位移
-	bool MouseDown[3] = { false,false,false };//鼠标按键按下布尔判断信息 []使用GLFW_MOUSE_BUTTON_LEFT枚举名称0 1 2 索引
+	bool MouseDown[3] = { false,false,false };//鼠标按键按下包括长按 单击布尔判断信息 []使用GLFW_MOUSE_BUTTON_LEFT枚举名称0 1 2 索引
+	bool MouseClicked[3] = { false,false,false };//鼠标按键单击判断
+	bool MouseRelease[3] = { false,false,false };//鼠标按键松开判断
+	bool MouseDoubleClicked[3] = { false,false,false };//鼠标按键双击判断
+	float MouseDownDuration[3] = { -1.0f,-1.0f,-1.0f };//鼠标按键按下的持续时间
+	float MouseClickedTime[3]= { 0.0f,0.0f,0.0f };//鼠标按键点击的时间
+	const float MouseDoubleClickedInterval = 0.3f;//鼠标按键双击判定间隔时间
+	const float MouseDoubleClickedOffsetLimit = 0.01f;//鼠标判定双击 鼠标前后位移的变化上限
+	glm::vec2 MouseClickedPos[3];//鼠标按键点击的位置
 	glm::vec2 MousePos;//鼠标屏幕位置 
 	float Scroll;//滚轮条的滚动位移
 	KeyEvent KeyMesage;//按键消息
@@ -158,6 +167,7 @@ struct ShowWindowContainer
 		bool Movable = true;//是否窗口可以允许移动
 		bool Bring_Front = false;//是否自身窗口置顶显示
 		bool IsWindowVisible = true;//是否允许窗口显示即是否将本身窗口绘制资源顶点发送给GPU
+		bool Collapsed = true;//是否允许内容被下拉
 	};
 	RBTreeMap<const char*, ShowMenu*>MenuMap;//当前窗口在菜单映射表
 	DynamicArray<ShowMenu*>MenuArray;//当前窗口的存储各个菜单栏数组
@@ -193,6 +203,8 @@ public:
 	void MenuItem(const char*ItemName,bool*ShowotherContextFlag);//为菜单栏添加子条目
 	void EndMenu();//计算好所有子条目的参数 总的判断事件标志 绘制子条目的文本框和文本 最后再弹出更新的内存
 	void EndShowWindow();//从当前窗口弹开方便下一个窗口的子条目绘制因为要访问目前窗口的位置
+
+	bool TreeLabel(const char*label);
 private:
 	ShowWindowContainer* CreateNewShowWindow(const char* name);//只允许调用一次
 	ShowWindowContainer* FindShowWindowByName(const char* name);
@@ -215,6 +227,7 @@ public:
 	glm::vec2 ArcFastLookUpTable[48];//存储cos sin值
 	glm::vec4 Colors[8];//一些绘制内容在默认颜色
 	bool Has_Bring_front_opera=false;//是否有置顶窗口的操作
+	float DeltaTime = 1.0f;
 protected:
 	shaderProgram* shader = nullptr;
 	glm::mat4 orthoProjection;
@@ -230,6 +243,7 @@ private:
 void SetUpContextIO();// io设置
 void BuildBackendData();//建立所需要的字体纹理和顶点资源
 BuiltIO* GetIo();//返回IO访问地址
+void ProcessMouseButtonStatus();
 void UpdateEvent(GLFWwindow* window);
 void ClearEvent();
 void RenderDrawData(UI* DrawUI);//绘制添加进来的绘制数据

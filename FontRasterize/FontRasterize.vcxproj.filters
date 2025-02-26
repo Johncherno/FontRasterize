@@ -21,7 +21,7 @@
     <ClCompile Include="Fontbuilder\fontConstruct.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="Fontbuilder\font_opengl.cpp">
+    <ClCompile Include="Fontbuilder\ui_opengl.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="Fontbuilder\shaderProgram.cpp">
@@ -41,7 +41,7 @@
     <ClInclude Include="Fontbuilder\TruetypeFont.h">
       <Filter>头文件</Filter>
     </ClInclude>
-    <ClInclude Include="Fontbuilder\font_opengl.h">
+    <ClInclude Include="Fontbuilder\ui_opengl.h">
       <Filter>头文件</Filter>
     </ClInclude>
     <ClInclude Include="Fontbuilder\shaderProgram.h">

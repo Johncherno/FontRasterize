@@ -1,4 +1,4 @@
-#include "font_opengl.h"
+#include "ui_opengl.h"
 
 
 static void CheckGLError(const char* stmt, const char* fname, int line) {
@@ -81,19 +81,45 @@ static DynamicArray<unsigned int> TextChar_utf_8_ToUnicode(const char* utf8_str)
 static glm::vec2 CalcuTextSize(const char*Text,float scalex,float scaley)
 {
 	//获取io的字体方块的X0 X1 Y0 Y1 计算字符方块宽度 字符方块高度 字符步进距离Advance 通过累加（每个字符的宽度 步进距离）=总文本宽度 取每个字符的高度的最大值就是文本的高度
-	glm::vec2 textSize = glm::vec2(0,0);
-	DynamicArray<unsigned int> str = TextChar_utf_8_ToUnicode(Text);//将utf-8转为unicode索引
-	for (unsigned int i=0;i<str.size();i++)
-	{
+	glm::vec2 textSize = glm::vec2(0, 0);
+	float currentLineWidth = 0;
+	float currentLineHeight = 0;
+	DynamicArray<unsigned int> str = TextChar_utf_8_ToUnicode(Text); // 将utf-8转为unicode索引
+
+	for (unsigned int i = 0; i < str.size(); i++) {
 		unsigned int C = static_cast<unsigned int>(str[i]);
-		unsigned int glyphid = 0;
-		if (!io->atlas.glyphfonts->FindGlyph(C, glyphid))//寻找字符字形索引
+		/*1. textSize.x = std::max(textSize.x, currentLineWidth);
+		这行代码的作用是更新 textSize.x，即整个文本的宽度。具体来说：
+			textSize.x：存储整个文本的最大宽度。
+			currentLineWidth：存储当前行的宽度。
+			每次遇到换行符时，我们需要比较当前行的宽度和之前记录的最大宽度，取两者中的较大值作为整个文本的宽度。这是因为文本的宽度是由最宽的一行决定的。
+			2. textSize.y += currentLineHeight;
+		这行代码的作用是更新 textSize.y，即整个文本的高度。具体来说：
+			textSize.y：存储整个文本的高度。
+			currentLineHeight：存储当前行的最大字符高度。
+			每次遇到换行符时，我们需要将当前行的高度累加到总高度中。这是因为文本的高度是由所有行的高度之和决定的。*/
+		if (C == '\n') {
+			// 遇到换行符，更新总宽度和高度
+			textSize.x = std::max(textSize.x, currentLineWidth);
+			textSize.y += currentLineHeight;
+			currentLineWidth = 0;
+			currentLineHeight = 0;
 			continue;
+		}
+
+		unsigned int glyphid = 0;
+		if (!io->atlas.glyphfonts->FindGlyph(C, glyphid)) // 寻找字符字形索引
+			continue;
+
 		FontGlyph glyph = io->atlas.glyphfonts->Glyphs[glyphid];
-		textSize.y = std::max(textSize.y,fabs(scaley*(glyph.Y1- glyph.Y0)));
-		textSize.x += scalex * glyph.AdvanceX;
+		currentLineHeight = std::max(currentLineHeight, fabs(scaley * (glyph.Y1 - glyph.Y0)));
+		currentLineWidth += scalex * glyph.AdvanceX;
 	}
-	return  textSize;
+	// 最后一行的宽度和高度
+	textSize.x = std::max(textSize.x, currentLineWidth);
+	textSize.y += currentLineHeight;
+
+	return textSize;
 }
 //圆周率
 void DrawList::Clear()
@@ -208,7 +234,23 @@ void DrawList::AddLine(glm::vec2 p1, glm::vec2 p2, glm::vec4 color, float thickn
 	VtxCurrentIdx += 4;
 	_IdxWritePtr += 6;
 }
-void DrawList::AddTriangle(glm::vec2 p1, glm::vec2 p2, glm::vec2 p3, glm::vec4 color, float thickness)
+void DrawList::AddArrow(glm::vec2 p1, float Width, float Height, float scale, glm::vec4 Col, float thickness, bool CollapsedFlag)
+{
+	glm::vec2 p2= glm::vec2(0,0);
+	glm::vec2 p3= glm::vec2(0,0);
+	if (CollapsedFlag) {//是否允许内容被下拉
+		p2 = p1 + glm::vec2(Width* scale /2, Height*scale);
+		p3 = p1 + glm::vec2(Width * scale,0);
+	}
+	else {
+		p2 = p1 + glm::vec2(Width * scale, Height * scale / 2);
+		p3 = p1 + glm::vec2(0, Height * scale);
+	}
+	AddLine(p1, p2,Col, thickness); // 第一条边
+	AddLine(p2, p3,Col, thickness); // 第二条边
+
+}
+void DrawList::AddTriangleBorderLine(glm::vec2 p1, glm::vec2 p2, glm::vec2 p3, glm::vec4 color, float thickness)
 {
 	// 绘制三条边
 	AddLine(p1, p2, color, thickness); // 第一条边
@@ -224,8 +266,8 @@ void DrawList::AddRectTriangleBorder(glm::vec2 Min, glm::vec2 Max, glm::vec4 col
 	glm::vec2 p4 = glm::vec2(Min.x, Max.y); // 左上角
 
 	// 绘制两个基本三角形的边框
-	AddTriangle(p1, p2, p3, color, thickness); // 第一个三角形
-	AddTriangle(p3, p4, p1, color, thickness); // 第二个三角形
+	AddTriangleBorderLine(p1, p2, p3, color, thickness); // 第一个三角形
+	AddTriangleBorderLine(p3, p4, p1, color, thickness); // 第二个三角形
 }
 void DrawList::AddRectBorder(glm::vec2 Min, glm::vec2 Max, glm::vec4 color, float thickness)
 {
@@ -808,7 +850,7 @@ static void Mouse_callback(GLFWwindow* window, double xpos, double ypos)//更新IO
 static void Mouse_ButtonCallBack(GLFWwindow* window, int button, int action, int mods)//鼠标按键回调函数
 {
 
-	if (action == GLFW_PRESS)
+	if (action == GLFW_PRESS|| action == GLFW_REPEAT)
 		io->InputMessage.MouseDown[button] = true;
 	else
 		io->InputMessage.MouseDown[button] = false;
@@ -852,6 +894,29 @@ BuiltIO* GetIo()
 {
 	return io;
 }
+void ProcessMouseButtonStatus()
+{
+	for (unsigned int i = 0; i < 3; i++)//遍历鼠标左键 右键 滚轮键
+	{
+		//鼠标点击判定保证鼠标按下时间不长 因为MouseDowm包括长按 单击
+		io->InputMessage.MouseClicked[i] = io->InputMessage.MouseDown[i] && io->InputMessage.MouseDownDuration[i] < 0.0f;
+		//鼠标松开
+		io->InputMessage.MouseRelease[i] = !io->InputMessage.MouseDown[i] && io->InputMessage.MouseDownDuration[i] >= 0.0f;
+		//如果上一次鼠标按下并且这次弹开 时长为-1 否则自增或为0
+		io->InputMessage.MouseDownDuration[i] = io->InputMessage.MouseDown[i] ? (io->InputMessage.MouseDownDuration[i] < 0.0f ? 0.0f : io->InputMessage.MouseDownDuration[i] + io->DeltaTime) : -1.0f;
+		io->InputMessage.MouseDoubleClicked[i] = false;
+		if (io->InputMessage.MouseClicked[i]) {//如果鼠标点了一下记录此时点的时间 利用时间差来判定双击操作
+
+			if (glfwGetTime() - io->InputMessage.MouseClickedTime[i] < io->InputMessage.MouseDoubleClickedInterval) {//保证前后时间差足够短同时还要保证两次连续点击鼠标位置变化不要那么大
+				if (glm::length(io->InputMessage.MouseClickedPos[i] - io->InputMessage.MousePos) < io->InputMessage.MouseDoubleClickedOffsetLimit)
+					io->InputMessage.MouseDoubleClicked[i] = true;
+			}
+			io->InputMessage.MouseClickedPos[i] = io->InputMessage.MousePos;//方便下一次循环的访问计算
+			io->InputMessage.MouseClickedTime[i] = (float)glfwGetTime();
+		}
+
+	}
+}
 void UpdateEvent(GLFWwindow* window)
 {
 	/*写入IO对象里鼠标XY位移
@@ -884,7 +949,7 @@ void UpdateEvent(GLFWwindow* window)
 	io->drawdata.DisplayPos.y = ShowWindowViewPortPosY;
 	glfwSetScrollCallback(window, Mouse_Scroll_callback);//写入IO对象里滚动条的滚动位移
 	glfwSetKeyCallback(window, Key_Callback);
-
+	ProcessMouseButtonStatus();//鼠标按键状态处理
 }
 void ClearEvent()
 {
@@ -918,6 +983,8 @@ void UI::StartShowWindow(const char* Text, bool Popen)
 		showWindow = CreateNewShowWindow(Text); //防止一直new造成程序崩溃
 	}
 	showWindow->Flag.IsWindowVisible = Popen;
+
+	
 	//先计算标题的文本宽高
 	glm::vec2 TextSize = CalcuTextSize(Text,showWindow->ScaleX, showWindow->ScaleY);
 	//设置title标题栏的宽度、高度和外部裁剪框的宽度   后期再添加通过判断是否为第一帧 通过改变变量累次改变整个外部矩形 和标题框矩形的宽高
@@ -937,6 +1004,11 @@ void UI::StartShowWindow(const char* Text, bool Popen)
 	 showWindow->content.drawlist.AddRectFill(showWindow->OutterRect.Min, showWindow->OutterRect.Max,showWindow->COLOR[OutterRectCol],9,1);
 	 // 绘制titleRect标题裁剪矩形
 	 showWindow->content.drawlist.AddRectFill(showWindow->TitleRect.Min, showWindow->TitleRect.Max, showWindow->COLOR[TitleRectCol], 9, 1);
+
+	 //测试一下下拉箭头是否可以正确显示
+	 showWindow->content.drawlist.AddArrow(showWindow->Pos, 47, 47, showWindow->ScaleX, glm::vec4(1, 0, 1, 1), 4, showWindow->Flag.Collapsed);
+	 if (io->InputMessage.MouseDoubleClicked[GLFW_MOUSE_BUTTON_LEFT])//判定鼠标按键是否是双击
+		 showWindow->Flag.Collapsed = !showWindow->Flag.Collapsed;
 	//绘制title文本ClipText
 	 showWindow->content.drawlist.AddClipText(TitleTextPos,showWindow->COLOR[TextCol],Text, showWindow->TitleRect,showWindow->ScaleX,showWindow->ScaleY);
 	 //先将每个绘制内容颜色设置成默认在颜色 看下面有在操作可以改变这个颜色不 如果下边有操作可以改变这个颜色那就执行 如果没有相当于恢复原来在颜色
@@ -951,10 +1023,18 @@ void UI::StartShowWindow(const char* Text, bool Popen)
 			 //outterRect的颜色改变 否则颜色恢复原来
 			 showWindow->COLOR[OutterRectCol] = glm::vec4(0.2,0.2,0,1);
 			 //看是否标题文本框吃了鼠标 吃了outterRect的颜色恢复原来  TitleRect的颜色改变
-			 if (showWindow->TitleRect.Contain(io->InputMessage.MousePos))
+			 if (showWindow->TitleRect.Contain(io->InputMessage.MousePos))//判断标题框是否有鼠标悬浮
 			 {
 				 showWindow->COLOR[OutterRectCol] = io->Colors[OutterRectCol];
 				 showWindow->COLOR[TitleRectCol] = glm::vec4(0.3,0.4,0.3,1);
+				
+				 //同时判断鼠标按键按下 再判定窗口是否允许移动
+				 if (io->InputMessage.MouseDown[GLFW_MOUSE_BUTTON_LEFT]) {
+					
+					 if (showWindow->Flag.Movable)//如果窗口移动的标志判断被激活了允许移动
+						 showWindow->Pos += io->InputMessage.MouseDeltaOffset;
+				 }
+
 			 }
 		     //响应滚轮 判断按键改变内容的缩放比例
 			 if (io->InputMessage.KeyMesage.key == GLFW_KEY_LEFT_CONTROL && io->InputMessage.KeyMesage.press)
@@ -967,8 +1047,6 @@ void UI::StartShowWindow(const char* Text, bool Popen)
 			 {
 				 io->Has_Bring_front_opera = true;
 				 showWindow->Flag.Bring_Front = true;
-				 if(showWindow->Flag.Movable)//如果窗口移动的标志判断被激活了允许移动
-				    showWindow->Pos += io->InputMessage.MouseDeltaOffset;
 			 }
 			 else
 			 {
@@ -1169,6 +1247,11 @@ void UI::EndShowWindow()
 	CurrentShowWindow->Flag.AllowResponseInputEvent = false;//使用完了清空标志
 	this->CurrentShowWindowStack.pop_back();
 }
+bool UI::TreeLabel(const char* label)
+{
+	//总框架 
+	return false;
+}
 ShowWindowContainer* UI::CreateNewShowWindow(const char* name)
 {
 	ShowWindowContainer* newShowWindow = new ShowWindowContainer();//初始化现在新生成的窗口的参数
@@ -1195,8 +1278,10 @@ ShowWindowContainer* UI::FindShowWindowByName(const char* name)
 void UI::BgText(const char* Text)
 {
 	ShowWindowContainer* CurrentShowWindow = this->CurrentShowWindowStack.back();
-	CurrentShowWindow->content.drawlist.AddClipText(CurrentShowWindow->cursorPos+glm::vec2(3*CurrentShowWindow->spacing, 
-		3*CurrentShowWindow->spacing), io->Colors[TextCol], Text, CurrentShowWindow->OutterRect, CurrentShowWindow->ScaleX, CurrentShowWindow->ScaleX);
+	CurrentShowWindow->cursorPos += glm::vec2(3 * CurrentShowWindow->ScaleX * CurrentShowWindow->spacing,5 * CurrentShowWindow->ScaleY * CurrentShowWindow->spacing);
+	//CurrentShowWindow->content.drawlist.AddClipText(CurrentShowWindow->cursorPos, io->Colors[TextCol], Text, CurrentShowWindow->OutterRect, CurrentShowWindow->ScaleX, CurrentShowWindow->ScaleY);
+	//CurrentShowWindow->content.drawlist.AddTextSizeRectBorder(CurrentShowWindow->cursorPos, CalcuTextSize(Text, CurrentShowWindow->ScaleX, CurrentShowWindow->ScaleY), io->Colors[TextCol],4);
+	CurrentShowWindow->cursorPos.y += CalcuTextSize(Text, CurrentShowWindow->ScaleX, CurrentShowWindow->ScaleY).y;
 }
 ShowMenu* ShowWindowContainer::CreateMenu(const char* name)
 {
